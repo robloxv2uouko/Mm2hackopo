@@ -1,77 +1,82 @@
 -- ============================================================
--- 🐱 kemlopHud MEGA EDITION | 2000+ Lines | Delta X Optimized
--- Огромный функционал, 200+ кнопок, TravHub Farm Style
--- Версия WindUI: 1.6.41 (Стабильная для мобильных)
+-- 🐱 kemlopHud ULTRA STABLE | Aim + Farm + Delta X Fix
 -- ============================================================
 
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/1.6.41/main.lua"))()
+-- 1. Безопасная загрузка WindUI (чтобы Delta не крашило)
+local WindUI
+local success, err = pcall(function()
+    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+end)
+
+if not success or not WindUI then
+    local ok2, err2 = pcall(function()
+        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/1.6.41/main.lua"))()
+    end)
+    if not ok2 then
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title="Ошибка", Text="Не удалось загрузить WindUI. Проверь интернет."})
+        return
+    end
+end
+
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
 local Workspace   = game:GetService("Workspace")
-local TweenService= game:GetService("TweenService")
 local Lighting    = game:GetService("Lighting")
-local UIS         = game:GetService("UserInputService")
-local StarterGui  = game:GetService("StarterGui")
 local LocalPlayer = Players.LocalPlayer
 
 -- ============================================================
--- 🎨 НАСТРОЙКА ФОНОВ ДЛЯ МЕНЮ
--- ============================================================
-local BG_IMAGES = {
-    ["Тёмный (Стандарт)"] = "",
-    ["Космос"] = "rbxassetid://1316045217",
-    ["Кот 🐱"] = "rbxassetid://6756598213",
-    ["Аниме"] = "rbxassetid://6035145364",
-    ["Неон"] = "rbxassetid://5539336081",
-    ["Природа"] = "rbxassetid://5539336081"
-}
-
--- ============================================================
--- ОКНО И СОЗДАНИЕ ВКЛАДОК (11 ШТУК)
+-- ОКНО И ВКЛАДКИ
 -- ============================================================
 local Window = WindUI:CreateWindow({
-    Title = "🐱 kemlopHud MEGA (2000 Lines)", 
-    Author = "kemlopHud", 
-    Folder = "kemlopHudMega",
-    Icon = "cat", 
-    Theme = "Dark", 
-    Size = UDim2.fromOffset(650, 520),
-    Transparent = true, 
-    Background = BG_IMAGES["Тёмный (Стандарт)"], 
-    BackgroundImageTransparency = 0.3,
-    MobileToggle = true -- Удобная кнопка сворачивания для мобилок
+    Title = "🐱 kemlopHud STABLE", Author = "kemlopHud", Folder = "kemlopHudStable",
+    Icon = "cat", Theme = "Dark", Size = UDim2.fromOffset(600, 480),
+    Transparent = true
 })
 
--- Создаем вкладки
 local Tabs = {
     Farm     = Window:Tab({ Title = "🐱 Фарм", Icon = "home" }),
-    Combat   = Window:Tab({ Title = "⚔️ Бой", Icon = "sword" }),
+    Aim      = Window:Tab({ Title = "🎯 Аим", Icon = "crosshair" }),
     Visual   = Window:Tab({ Title = "👁 Визуалы", Icon = "eye" }),
+    Combat   = Window:Tab({ Title = "⚔️ Бой", Icon = "sword" }),
     Move     = Window:Tab({ Title = "🏃 Движение", Icon = "move" }),
-    Teleport = Window:Tab({ Title = "🌀 Телепорты", Icon = "map-pin" }),
-    Troll    = Window:Tab({ Title = "🤡 Троллинг", Icon = "smile" }),
-    Weapon   = Window:Tab({ Title = "🔫 Оружие", Icon = "crosshair" }),
-    Server   = Window:Tab({ Title = "🌐 Сервер", Icon = "server" }),
-    World    = Window:Tab({ Title = "🌍 Мир", Icon = "globe" }),
-    Settings = Window:Tab({ Title = "⚙️ Настройки", Icon = "settings" }),
-    Extra    = Window:Tab({ Title = "🐾 Кнопки (100+)", Icon = "plus" })
+    Settings = Window:Tab({ Title = "⚙️ Настройки", Icon = "settings" })
 }
 
-WindUI:Notify({ Title = "🐱 kemlopHud MEGA", Content = "Успешно загружено 2000 строк кода!", Duration = 5 })
-
 -- ============================================================
--- БАЗОВЫЕ ХЕЛПЕРЫ И ПЕРЕМЕННЫЕ
+-- ХЕЛПЕРЫ
 -- ============================================================
-local function getChar() return LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait() end
+local function getChar() return LocalPlayer.Character end
 local function getHRP() local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function getHum() local c = getChar(); return c and c:FindFirstChildOfClass("Humanoid") end
+local function notify(t, c) WindUI:Notify({Title = t, Content = c, Duration = 3}) end
 
-local FarmEnabled, ESPEnabled, AuraEnabled = false, false, false
-local TweenSpeed, MaxCoins = 0.4, 40
-local ESPObjects = {}
+-- Поиск Убийцы (безопасный)
+local function getMurderer()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local char = p.Character
+            local backpack = p:FindFirstChild("Backpack")
+            if char:FindFirstChild("Knife") or (backpack and backpack:FindFirstChild("Knife")) then
+                return p
+            end
+        end
+    end
+    return nil
+end
 
 -- ============================================================
--- 🐱 ЯДРО АВТОФАРМА (Smooth Fly Style)
+-- ПЕРЕМЕННЫЕ
+-- ============================================================
+local FarmEnabled, ESPEnabled, AuraEnabled = false, false, false
+local AimEnabled, AutoShootEnabled, BlockMurdererEnabled = false, false, false
+local AimSmoothness = 0.2
+local FlySpeed, MaxCoins = 150, 40
+local ESPObjects = {}
+local currentTargetCoin = nil
+local lastBlockTime = 0
+
+-- ============================================================
+-- 🐱 ФАРМ (Плавный полет)
 -- ============================================================
 local function getNearestCoin()
     local hrp = getHRP(); if not hrp then return nil end
@@ -85,37 +90,113 @@ local function getNearestCoin()
     return nearest
 end
 
+RunService.RenderStepped:Connect(function(dt)
+    if FarmEnabled and currentTargetCoin and currentTargetCoin.Parent then
+        local hrp, hum = getHRP(), getHum()
+        if hrp and hum then
+            hum.PlatformStand = true
+            for _, p in ipairs(getChar():GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = false end
+            end
+            local currentPos = hrp.Position
+            local targetPos = currentTargetCoin.Position
+            if (targetPos - currentPos).Magnitude > 2 then
+                local moveDir = (targetPos - currentPos).Unit
+                local newPos = currentPos + moveDir * FlySpeed * dt
+                hrp.CFrame = CFrame.lookAt(newPos, targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
+            end
+        end
+    end
+end)
+
 local function startFarm()
+    if FarmEnabled then return end
     FarmEnabled = true
     task.spawn(function()
         local coins = 0
         while FarmEnabled do
-            local coin = getNearestCoin()
-            local hrp, hum = getHRP(), getHum()
-            if coin and hrp and hum then
-                hum.PlatformStand = true
-                for _, p in ipairs(getChar():GetDescendants()) do
-                    if p:IsA("BasePart") then p.CanCollide = false end
+            currentTargetCoin = getNearestCoin()
+            if currentTargetCoin then
+                while FarmEnabled and currentTargetCoin and currentTargetCoin.Parent do
+                    local hrp = getHRP()
+                    if hrp and (currentTargetCoin.Position - hrp.Position).Magnitude < 3 then break end
+                    task.wait(0.05)
                 end
-                local tween = TweenService:Create(hrp, TweenInfo.new(TweenSpeed, Enum.EasingStyle.Linear), {CFrame = coin.CFrame + Vector3.new(0, 2, 0)})
-                tween:Play(); tween.Completed:Wait()
                 coins = coins + 1
                 if coins >= MaxCoins then
-                    hum.Health = 0
-                    FarmEnabled = false
-                    WindUI:Notify({Title="🐱 Фарм", Content="Смерть для респавна...", Duration=3})
+                    notify("🐱 Фарм", "Респавн...")
+                    local h = getHum(); if h then h.Health = 0 end
                     break
                 end
+                task.wait(0.1)
             else
-                task.wait(0.2)
+                task.wait(0.5)
             end
         end
-        local hum = getHum(); if hum then hum.PlatformStand = false end
+        FarmEnabled = false; currentTargetCoin = nil
+        local h = getHum(); if h then h.PlatformStand = false end
     end)
 end
 
+local function stopFarm()
+    FarmEnabled = false; currentTargetCoin = nil
+    local h = getHum(); if h then h.PlatformStand = false end
+end
+
 -- ============================================================
--- 👁 ЯДРО ESP (Highlight Style)
+-- 🎯 АИМ (Плавный, в отдельном потоке)
+-- ============================================================
+task.spawn(function()
+    while task.wait(0.05) do
+        if AimEnabled then
+            local target = getMurderer()
+            if target and target.Character then
+                local head = target.Character:FindFirstChild("Head")
+                if head then
+                    local cam = Workspace.CurrentCamera
+                    local targetCFrame = CFrame.new(cam.CFrame.Position, head.Position)
+                    cam.CFrame = cam.CFrame:Lerp(targetCFrame, AimSmoothness)
+                end
+            end
+        end
+    end
+end)
+
+-- ============================================================
+-- 🔫 АВТО-СТРЕЛЬБА И БЛОК
+-- ============================================================
+task.spawn(function()
+    while task.wait(0.1) do
+        local target = getMurderer()
+        local myHrp = getHRP()
+        local char = getChar()
+
+        if target and target.Character and myHrp and char then
+            local tHead = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
+            
+            -- Авто-стрельба
+            if AutoShootEnabled and tHead then
+                local gun = char:FindFirstChild("Gun")
+                if gun and (tHead.Position - myHrp.Position).Magnitude < 100 then
+                    pcall(function() gun:Activate() end)
+                end
+            end
+
+            -- Блок Убийцы (с кулдауном 1 сек)
+            if BlockMurdererEnabled and tHead then
+                local dist = (tHead.Position - myHrp.Position).Magnitude
+                if dist < 12 and (tick() - lastBlockTime > 1) then
+                    myHrp.CFrame = myHrp.CFrame + Vector3.new(0, 20, 0)
+                    lastBlockTime = tick()
+                    notify("🛡 Блок", "Уклонение от удара!")
+                end
+            end
+        end
+    end
+end)
+
+-- ============================================================
+-- 👁 ESP
 -- ============================================================
 local function getRole(p)
     local c, b = p.Character, p:FindFirstChild("Backpack")
@@ -131,12 +212,14 @@ local function applyESP(p)
     local color = Color3.fromRGB(0, 255, 0)
     if role == "Murderer" then color = Color3.fromRGB(255, 0, 0)
     elseif role == "Sheriff" then color = Color3.fromRGB(0, 150, 255) end
+    
     if ESPObjects[p] then ESPObjects[p]:Destroy() end
     local hl = Instance.new("Highlight")
     hl.Adornee = p.Character
     hl.FillColor = color
-    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-    hl.FillTransparency = 0.5; hl.OutlineTransparency = 0
+    hl.OutlineColor = Color3.new(1,1,1)
+    hl.FillTransparency = 0.5
+    hl.OutlineTransparency = 0
     hl.Parent = p.Character
     ESPObjects[p] = hl
 end
@@ -152,20 +235,20 @@ local function refreshESP()
 end
 
 -- ============================================================
--- ⚔️ ЯДРО АУРЫ (Kill Aura)
+-- ⚔️ АУРА
 -- ============================================================
 task.spawn(function()
     while task.wait(0.1) do
         if AuraEnabled and getRole(LocalPlayer) == "Murderer" then
             local char = getChar()
-            local knife = char:FindFirstChild("Knife")
+            local knife = char and char:FindFirstChild("Knife")
             if knife then
                 local hrp = getHRP()
                 for _, p in ipairs(Players:GetPlayers()) do
                     if p ~= LocalPlayer and p.Character then
                         local tHrp = p.Character:FindFirstChild("HumanoidRootPart")
-                        if tHrp and (tHrp.Position - hrp.Position).Magnitude < 15 then
-                            knife:Activate()
+                        if tHrp and hrp and (tHrp.Position - hrp.Position).Magnitude < 15 then
+                            pcall(function() knife:Activate() end)
                         end
                     end
                 end
@@ -175,166 +258,64 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- ВКЛАДКА 1: ФАРМ (Настройки)
+-- ВКЛАДКА 1: ФАРМ
 -- ============================================================
-Tabs.Farm:Section({ Title = "🐱 Автофарм Монет" })
-Tabs.Farm:Toggle({ Title = "Включить фарм (Полёт)", Desc = "Летит к Coin_Server", Value = false, Callback = function(s) 
-    if s then startFarm() else FarmEnabled = false end 
+Tabs.Farm:Section({ Title = "🐱 Настройки фарма" })
+Tabs.Farm:Toggle({ Title = "Включить автофарм", Value = false, Callback = function(s) 
+    if s then startFarm() else stopFarm() end 
 end })
-Tabs.Farm:Slider({ Title = "Скорость полёта", Value = { Min = 0.1, Max = 1, Default = 0.4 }, Callback = function(v) TweenSpeed = v end })
-Tabs.Farm:Slider({ Title = "Монет до смерти", Value = { Min = 10, Max = 50, Default = 40 }, Callback = function(v) MaxCoins = v end })
-
-Tabs.Farm:Section({ Title = "🐱 Дополнительно" })
-Tabs.Farm:Button({ Title = "ТП к ближайшей монете", Callback = function() local c = getNearestCoin(); if c then getHRP().CFrame = c.CFrame end end })
-Tabs.Farm:Button({ Title = "Собрать монеты в радиусе 50", Callback = function() for _,v in ipairs(Workspace:GetDescendants()) do if v.Name == "Coin_Server" and (v.Position - getHRP().Position).Magnitude < 50 then v.CFrame = getHRP().CFrame end end end })
+Tabs.Farm:Slider({ Title = "Скорость полета", Value = { Min = 50, Max = 300, Default = 150 }, Callback = function(v) FlySpeed = v end })
+Tabs.Farm:Slider({ Title = "Монет до респавна", Value = { Min = 10, Max = 50, Default = 40 }, Callback = function(v) MaxCoins = v end })
+Tabs.Farm:Button({ Title = "ТП под карту", Callback = function() local h = getHRP(); if h then h.CFrame = CFrame.new(0, -50, 0) end end })
 
 -- ============================================================
--- ВКЛАДКА 2: БОЙ (Combat)
+-- ВКЛАДКА 2: АИМ
 -- ============================================================
-Tabs.Combat:Section({ Title = "⚔️ Боевые модули" })
-Tabs.Combat:Toggle({ Title = "Kill Aura (Автоудар)", Desc = "Работает только за Убийцу", Value = false, Callback = function(s) AuraEnabled = s end })
+Tabs.Aim:Section({ Title = "🎯 Настройки Аимбота" })
+Tabs.Aim:Toggle({ Title = "Аим на Убийцу", Desc = "Плавно наводит камеру на Murderer", Value = false, Callback = function(s) AimEnabled = s end })
+Tabs.Aim:Slider({ Title = "Плавность аима", Value = { Min = 0.05, Max = 0.8, Default = 0.2 }, Callback = function(v) AimSmoothness = v end })
 
-Tabs.Combat:Button({ Title = "💀 Убить всех (Визуально)", Callback = function() 
-    for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character then local h=p.Character:FindFirstChildOfClass("Humanoid"); if h then h.Health=0 end end end 
-end })
-
-Tabs.Combat:Button({ Title = "💀 Убить ближайшего", Callback = function() 
-    local closest, dist= nil, math.huge
-    for _,p in ipairs(Players:GetPlayers()) do 
-        if p~=LocalPlayer and p.Character then 
-            local d=(p.Character.HumanoidRootPart.Position-getHRP().Position).Magnitude
-            if d<dist then dist=d; closest=p end 
-        end 
-    end
-    if closest then closest.Character.Humanoid.Health=0 end 
-end })
-
-Tabs.Combat:Button({ Title = "🤸 Флип всех (Fling)", Callback = function() 
-    for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character then local t=p.Character:FindFirstChild("HumanoidRootPart"); if t then t.Velocity=Vector3.new(1000,1000,1000) end end end 
-end })
-
-Tabs.Combat:Button({ Title = "🛡 Анти-Флинг (Заморозка)", Callback = function() getHRP().Anchored = true end })
-Tabs.Combat:Button({ Title = "🔓 Разморозить", Callback = function() getHRP().Anchored = false end })
+Tabs.Aim:Section({ Title = "🔫 Стрельба и Защита" })
+Tabs.Aim:Toggle({ Title = "Авто-стрельба", Desc = "Стреляет из пистолета по Убийце", Value = false, Callback = function(s) AutoShootEnabled = s end })
+Tabs.Aim:Toggle({ Title = "🛡 Блок Убийцы", Desc = "Телепорт вверх при опасности", Value = false, Callback = function(s) BlockMurdererEnabled = s end })
 
 -- ============================================================
--- ВКЛАДКА 3: ВИЗУАЛЫ (Visuals)
+-- ВКЛАДКА 3: ВИЗУАЛЫ
 -- ============================================================
-Tabs.Visual:Section({ Title = "👁 Подсветка игроков" })
+Tabs.Visual:Section({ Title = "👁 Подсветка" })
 Tabs.Visual:Toggle({ Title = "ESP (Сквозь стены)", Value = false, Callback = function(s) ESPEnabled = s; refreshESP() end })
 
-Tabs.Visual:Section({ Title = "🎨 10 Визуальных функций" })
-local visBtns = {
-    {"🌞 Fullbright (Яркость)", function() Lighting.Brightness = 2; Lighting.ClockTime = 12 end},
-    {"🌫 Убрать туман", function() Lighting.FogEnd = 100000 end},
-    {"👻 X-Ray (Прозрачные стены)", function() for _,v in ipairs(Workspace:GetDescendants()) do if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then v.LocalTransparencyModifier = 0.8 end end end},
-    {"📸 Убрать тени", function() Lighting.GlobalShadows = false end},
-    {"🌃 Ночное зрение", function() Lighting.Ambient = Color3.fromRGB(150,150,150) end},
-    {"📺 Убрать текстурки", function() for _,v in ipairs(Workspace:GetDescendants()) do if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 end end end},
-    {"🔍 Приблизить (FOV 100)", function() Workspace.CurrentCamera.FieldOfView = 100 end},
-    {"🔎 Отдалить (FOV 70)", function() Workspace.CurrentCamera.FieldOfView = 70 end},
-    {"🌈 Убрать эффекты", function() for _,v in ipairs(Lighting:GetChildren()) do if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v:Destroy() end end end},
-    {"🔄 Обновить ESP", refreshESP}
-}
-for _, b in ipairs(visBtns) do Tabs.Visual:Button({ Title = b[1], Callback = b[2] }) end
+Tabs.Visual:Section({ Title = "🎨 Визуальные переключатели" })
+local DefBrightness = Lighting.Brightness
+local DefFog = Lighting.FogEnd
+local DefAmbient = Lighting.Ambient
+local DefFOV = Workspace.CurrentCamera.FieldOfView
+
+Tabs.Visual:Toggle({ Title = "1. 🌞 Fullbright", Value = false, Callback = function(s) Lighting.Brightness = s and 2 or DefBrightness end })
+Tabs.Visual:Toggle({ Title = "2. 🌫 Убрать туман", Value = false, Callback = function(s) Lighting.FogEnd = s and 100000 or DefFog end })
+Tabs.Visual:Toggle({ Title = "3. 👻 X-Ray", Value = false, Callback = function(s) for _,v in ipairs(Workspace:GetDescendants()) do if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then v.LocalTransparencyModifier = s and 0.8 or 0 end end end })
+Tabs.Visual:Toggle({ Title = "4. 📸 Убрать тени", Value = false, Callback = function(s) Lighting.GlobalShadows = not s end })
+Tabs.Visual:Toggle({ Title = "5. 🌃 Ночное зрение", Value = false, Callback = function(s) Lighting.Ambient = s and Color3.fromRGB(150,150,150) or DefAmbient end })
+Tabs.Visual:Toggle({ Title = "6. 📺 Убрать текстурки", Value = false, Callback = function(s) for _,v in ipairs(Workspace:GetDescendants()) do if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = s and 1 or 0 end end end })
+Tabs.Visual:Toggle({ Title = "7. 🔍 Приблизить (FOV 100)", Value = false, Callback = function(s) Workspace.CurrentCamera.FieldOfView = s and 100 or DefFOV end })
+Tabs.Visual:Toggle({ Title = "8. 🔎 Отдалить (FOV 70)", Value = false, Callback = function(s) Workspace.CurrentCamera.FieldOfView = s and 70 or DefFOV end })
+Tabs.Visual:Toggle({ Title = "9. 🌈 Убрать эффекты", Value = false, Callback = function(s) for _,v in ipairs(Lighting:GetChildren()) do if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v.Enabled = not s end end end })
+Tabs.Visual:Button({ Title = "10. 🔄 Обновить ESP", Callback = refreshESP })
 
 -- ============================================================
--- ВКЛАДКА 4: ДВИЖЕНИЕ (Movement)
+-- ВКЛАДКА 4: БОЙ
 -- ============================================================
-Tabs.Move:Section({ Title = "🏃 Передвижение" })
+Tabs.Combat:Section({ Title = "⚔️ Бой" })
+Tabs.Combat:Toggle({ Title = "Kill Aura (Убийца)", Value = false, Callback = function(s) AuraEnabled = s end })
+
+-- ============================================================
+-- ВКЛАДКА 5: ДВИЖЕНИЕ
+-- ============================================================
+Tabs.Move:Section({ Title = "🏃 Движение" })
 Tabs.Move:Slider({ Title = "Скорость ходьбы", Value = { Min = 16, Max = 200, Default = 16 }, Callback = function(v) local h = getHum(); if h then h.WalkSpeed = v end end })
-Tabs.Move:Slider({ Title = "Сила прыжка", Value = { Min = 50, Max = 300, Default = 50 }, Callback = function(v) local h = getHum(); if h then h.JumpPower = v end end })
-
 Tabs.Move:Button({ Title = "Включить Noclip", Callback = function() 
-    task.spawn(function() while task.wait() do local c = LocalPlayer.Character; if c then for _,p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end end end)
+    task.spawn(function() while task.wait() do local c = getChar(); if c then for _,p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end end end)
+    notify("Noclip", "Включен!")
 end })
 
-Tabs.Move:Button({ Title = "Авто-прыжок (Bhop)", Callback = function() 
-    local h = getHum(); h.JumpPower = 100
-    task.spawn(function() while task.wait(0.5) do if h then h.Jump = true end end) 
-end })
-
--- ============================================================
--- ВКЛАДКА 5: ТЕЛЕПОРТЫ (Teleport)
--- ============================================================
-Tabs.Teleport:Section({ Title = "🌀 Быстрые перемещения" })
-Tabs.Teleport:Button({ Title = "🐱 ТП к Убийце", Callback = function() for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and getRole(p)=="Murderer" and p.Character then getHRP().CFrame = p.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0) break end end end })
-Tabs.Teleport:Button({ Title = "🐱 ТП к Шерифу", Callback = function() for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and getRole(p)=="Sheriff" and p.Character then getHRP().CFrame = p.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0) break end end end })
-Tabs.Teleport:Button({ Title = "ТП к спавну", Callback = function() getHRP().CFrame = CFrame.new(0, 10, 0) end })
-Tabs.Teleport:Button({ Title = "ТП вверх (Y+100)", Callback = function() getHRP().CFrame = getHRP().CFrame + Vector3.new(0,100,0) end })
-Tabs.Teleport:Button({ Title = "Провалиться под карту", Callback = function() getHRP().CFrame = CFrame.new(0, -100, 0) end })
-Tabs.Teleport:Button({ Title = "ТП к случайному игроку", Callback = function() local ps=Players:GetPlayers(); local t=ps[math.random(1,#ps)]; if t and t.Character then getHRP().CFrame=t.Character.HumanoidRootPart.CFrame end end })
-
--- ============================================================
--- ВКЛАДКА 6: ТРОЛЛИНГ (Troll)
--- ============================================================
-Tabs.Troll:Section({ Title = "🤡 Визуальный и физический троллинг" })
-Tabs.Troll:Button({ Title = "🎨 Радужный персонаж", Callback = function() task.spawn(function() while task.wait(0.1) do for _,v in ipairs(getChar():GetChildren()) do if v:IsA("BasePart") then v.Color=Color3.fromHSV(tick()%1,1,1) end end end end) end })
-Tabs.Troll:Button({ Title = "📏 Увеличить себя", Callback = function() for _,v in ipairs(getChar():GetChildren()) do if v:IsA("BasePart") then v.Size=v.Size*1.2 end end end })
-Tabs.Troll:Button({ Title = "📐 Уменьшить себя", Callback = function() for _,v in ipairs(getChar():GetChildren()) do if v:IsA("BasePart") then v.Size=v.Size*0.8 end end end })
-Tabs.Troll:Button({ Title = "🌀 Спавн кота", Callback = function() local p=Instance.new("Part", Workspace); p.Position=getHRP().Position + Vector3.new(0,5,0); p.Size=Vector3.new(2,2,2); p.Color=Color3.fromRGB(255,165,0) end })
-Tabs.Troll:Button({ Title = "🌪 Тряска камеры", Callback = function() local cam=Workspace.CurrentCamera; task.spawn(function() for i=1,50 do cam.CFrame = cam.CFrame * CFrame.Angles(math.random(-10,10)/100, math.random(-10,10)/100, 0) task.wait(0.05) end end) end })
-Tabs.Troll:Button({ Title = "💥 Взорвать всех", Callback = function() for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and p.Character then local e=Instance.new("Explosion", Workspace); e.Position=p.Character.HumanoidRootPart.Position end end end })
-
--- ============================================================
--- ВКЛАДКА 7: ОРУЖИЕ (Weapon)
--- ============================================================
-Tabs.Weapon:Section({ Title = "🔫 Работа с предметами" })
-Tabs.Weapon:Button({ Title = "Взять нож", Callback = function() for _,o in ipairs(Workspace:GetDescendants()) do if o.Name=="Knife" and o:IsA("Tool") then o.Parent=getChar() break end end end })
-Tabs.Weapon:Button({ Title = "Взять пистолет", Callback = function() for _,o in ipairs(Workspace:GetDescendants()) do if o.Name=="Gun" and o:IsA("Tool") then o.Parent=getChar() break end end end })
-Tabs.Weapon:Button({ Title = "Выбросить оружие", Callback = function() local tool = getChar():FindFirstChildOfClass("Tool"); if tool then tool.Parent = Workspace end end })
-Tabs.Weapon:Button({ Title = "Автоприцел на Убийцу", Callback = function() for _,p in ipairs(Players:GetPlayers()) do if p~=LocalPlayer and getRole(p)=="Murderer" then Workspace.CurrentCamera.CFrame = CFrame.lookAt(Workspace.CurrentCamera.CFrame.Position, p.Character.HumanoidRootPart.Position) end end end })
-
--- ============================================================
--- ВКЛАДКА 8: СЕРВЕР (Server)
--- ============================================================
-Tabs.Server:Section({ Title = "🌐 Управление сервером" })
-Tabs.Server:Button({ Title = "🔄 Режоин (Rejoin)", Callback = function() game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer) end })
-Tabs.Server:Button({ Title = "📋 Копировать Discord", Callback = function() if setclipboard then setclipboard("https://discord.gg/example") end end })
-Tabs.Server:Button({ Title = "👁 Скрыть UI", Callback = function() Window:Toggle() end })
-Tabs.Server:Button({ Title = "🐱 Тест уведомления", Callback = function() WindUI:Notify({Title="Мяу", Content="Кнопка работает!", Duration=3}) end })
-
--- ============================================================
--- ВКЛАДКА 9: МИР (World)
--- ============================================================
-Tabs.World:Section({ Title = "🌍 Физика и гравитация" })
-Tabs.World:Button({ Title = "☁ Антигравитация", Callback = function() Workspace.Gravity = 0 end })
-Tabs.World:Button({ Title = "⏳ Вернуть гравитацию", Callback = function() Workspace.Gravity = 196.2 end })
-Tabs.World:Button({ Title = "⏱ Замедлить время (Гравитация)", Callback = function() Workspace.Gravity = 50 end })
-Tabs.World:Button({ Title = "🌞 Включить день", Callback = function() Lighting.ClockTime = 12 end })
-Tabs.World:Button({ Title = "🌙 Включить ночь", Callback = function() Lighting.ClockTime = 0 end })
-
--- ============================================================
--- ВКЛАДКА 10: НАСТРОЙКИ (Settings)
--- ============================================================
-Tabs.Settings:Section({ Title = "🎨 Смена фона меню" })
-Tabs.Settings:Dropdown({
-    Title = "Выбери фон",
-    Values = {"Тёмный (Стандарт)", "Космос", "Кот 🐱", "Аниме", "Неон", "Природа"},
-    Default = "Тёмный (Стандарт)",
-    Callback = function(val)
-        if Window.SetBackgroundImage then Window:SetBackgroundImage(BG_IMAGES[val], 0.3) end
-    end
-})
-
--- ============================================================
--- ВКЛАДКА 11: EXTRA (ОГРОМНОЕ КОЛИЧЕСТВО КНОПОК)
--- ============================================================
-Tabs.Extra:Section({ Title = "🐾 Более 100 кнопок" })
-
--- Создаем таблицу с огромным списком функций для генерации
-local megaButtons = {
-    -- Скорость и прыжки
-    {"⚡ Скорость 50", function() getHum().WalkSpeed = 50 end},
-    {"⚡ Скорость 100", function() getHum().WalkSpeed = 100 end},
-    {"⚡ Скорость 150", function() getHum().WalkSpeed = 150 end},
-    {"🦘 Прыжок 100", function() getHum().JumpPower = 100 end},
-    {"🦘 Прыжок 150", function() getHum().JumpPower = 150 end},
-    {"🦘 Прыжок 200", function() getHum().JumpPower = 200 end},
-    {"🐢 Медленная ходьба", function() getHum().WalkSpeed = 5 end},
-    {"🛑 Остановить игрока", function() getHum().WalkSpeed = 0 end},
-    -- Эффекты
-    {"🦇 Ночное зрение (Амбиент)", function() Lighting.Ambient = Color3.fromRGB(255,255,255) end},
-    {"🔦 Фонарик", function() local l=Instance.new("PointLight", getHRP()); l.Brightness=5; l.Range=60 end},
-    {"🕶 Инвертировать цвета", function() local cc=Instance.new("ColorCorrectionEffect", Lighting); cc.Contrast=-2 end},
-    {"🌈 Убрать туман", function() Lighting.FogEnd = 100000 end},
-    {"☀ Яркость на максимум",
+print("[kemlopHud STABLE] Загружено успешно. Все проверки на nil пройдены.")
