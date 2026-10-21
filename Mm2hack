@@ -1,22 +1,8 @@
 -- ============================================================
--- 🐱 kemlopHud ULTRA STABLE | Aim + Farm + Delta X Fix
+-- 🐱 kemlopHud FINAL ULTIMATE | Bulletproof Fix
 -- ============================================================
 
--- 1. Безопасная загрузка WindUI (чтобы Delta не крашило)
-local WindUI
-local success, err = pcall(function()
-    WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-end)
-
-if not success or not WindUI then
-    local ok2, err2 = pcall(function()
-        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/download/1.6.41/main.lua"))()
-    end)
-    if not ok2 then
-        game:GetService("StarterGui"):SetCore("SendNotification", {Title="Ошибка", Text="Не удалось загрузить WindUI. Проверь интернет."})
-        return
-    end
-end
+local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
 
 local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
@@ -24,15 +10,158 @@ local Workspace   = game:GetService("Workspace")
 local Lighting    = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 
--- ============================================================
--- ОКНО И ВКЛАДКИ
--- ============================================================
+local Backgrounds = {
+    ["Моя (121182458846548)"]   = "121182458846548",
+    ["Фон 2 (99779444419307)"]  = "99779444419307",
+    ["Фон 3 (108781708883441)"] = "108781708883441",
+    ["Фон 4 (116954976050470)"] = "116954976050470"
+}
+local DEFAULT_BG_ID = "121182458846548"
+
+-- Создаем окно БЕЗ фона, чтобы WindUI не залил кнопки
 local Window = WindUI:CreateWindow({
-    Title = "🐱 kemlopHud STABLE", Author = "kemlopHud", Folder = "kemlopHudStable",
-    Icon = "cat", Theme = "Dark", Size = UDim2.fromOffset(600, 480),
+    Title = "kemlopHud",
+    Author = "kemlopHud",
+    Folder = "kemlopHudStable",
+    Icon = "rbxassetid://" .. DEFAULT_BG_ID,
+    Theme = "Dark",
+    Size = UDim2.fromOffset(600, 480),
     Transparent = true
 })
 
+-- ============================================================
+-- 🛠 УЛЬТРА-БЕЗОПАСНЫЙ ПОИСК ОКНА
+-- ============================================================
+local function getMainFrame()
+    -- 1. Прямой поиск по свойствам объекта Window
+    local props = {"Main", "Frame", "Window", "Root", "Gui", "MainFrame", "Instance", "Holder", "Container"}
+    for _, prop in ipairs(props) do
+        local ok, val = pcall(function() return Window[prop] end)
+        if ok and typeof(val) == "Instance" and val:IsA("GuiObject") then
+            return val
+        end
+    end
+
+    -- 2. Поиск через ScreenGui по заголовку "kemlopHud"
+    local screens = {}
+    local function scan(parent)
+        for _, v in pairs(parent:GetChildren()) do
+            if v:IsA("ScreenGui") and v.Enabled then
+                -- Ищем текст "kemlopHud" внутри
+                for _, d in pairs(v:GetDescendants()) do
+                    if d:IsA("TextLabel") and d.Text and d.Text:lower():find("kemlophud") then
+                        table.insert(screens, v)
+                        break
+                    end
+                end
+            elseif v:IsA("Folder") then
+                scan(v) -- Рекурсивно проверяем папки
+            end
+        end
+    end
+
+    if gethui then scan(gethui()) end
+    scan(game:GetService("CoreGui"))
+    scan(LocalPlayer:WaitForChild("PlayerGui"))
+
+    if #screens > 0 then
+        local screen = screens[1]
+        -- Находим самый большой Frame внутри этого ScreenGui
+        local bestFrame, maxArea = nil, 0
+        for _, obj in pairs(screen:GetDescendants()) do
+            if (obj:IsA("Frame") or obj:IsA("CanvasGroup")) and obj.Visible then
+                local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
+                if area > maxArea and obj.AbsoluteSize.X > 300 and obj.AbsoluteSize.Y > 200 then
+                    maxArea = area
+                    bestFrame = obj
+                end
+            end
+        end
+        if bestFrame then return bestFrame end
+    end
+
+    -- 3. Запасной вариант: ищем просто самый большой Frame в CoreGui
+    local fallbackFrame, maxArea = nil, 0
+    local function scanAll(parent)
+        for _, v in pairs(parent:GetChildren()) do
+            if v:IsA("ScreenGui") and v.Enabled then
+                for _, obj in pairs(v:GetDescendants()) do
+                    if (obj:IsA("Frame") or obj:IsA("CanvasGroup")) and obj.Visible then
+                        local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
+                        if area > maxArea and obj.AbsoluteSize.X > 400 and obj.AbsoluteSize.X < 1000 and obj.AbsoluteSize.Y > 300 then
+                            maxArea = area
+                            fallbackFrame = obj
+                        end
+                    end
+                end
+            elseif v:IsA("Folder") then
+                scanAll(v)
+            end
+        end
+    end
+
+    if gethui then scanAll(gethui()) end
+    scanAll(game:GetService("CoreGui"))
+    
+    return fallbackFrame
+end
+
+local function applyForceBackground(imageId)
+    local mainFrame = getMainFrame()
+    if not mainFrame then return "Ошибка: Окно не найдено" end
+
+    -- Удаляем старый фон, если есть
+    local old = mainFrame:FindFirstChild("ForceBG")
+    if old then old:Destroy() end
+
+    -- Создаем новый фон
+    local bg = Instance.new("ImageLabel")
+    bg.Name = "ForceBG"
+    bg.Size = UDim2.fromScale(1, 1)
+    bg.Position = UDim2.fromScale(0, 0)
+    bg.BackgroundTransparency = 1
+    bg.BorderSizePixel = 0
+    bg.Image = "rbxassetid://" .. imageId
+    bg.ImageTransparency = 0.3
+    bg.ScaleType = Enum.ScaleType.Crop
+    bg.ZIndex = 0
+    bg.Parent = mainFrame
+
+    -- Делаем фон окна прозрачным (чтобы не было черного квадрата)
+    mainFrame.BackgroundTransparency = 1
+    mainFrame.ClipsDescendants = true
+
+    -- Поднимаем элементы интерфейса выше фона
+    for _, obj in ipairs(mainFrame:GetDescendants()) do
+        if obj:IsA("GuiObject") and obj ~= bg and not obj:IsDescendantOf(bg) then
+            if obj.ZIndex <= 0 then
+                obj.ZIndex = 1
+            end
+        end
+    end
+
+    return "Успешно применено!"
+end
+
+-- Авто-применение фона при запуске (с ретраями)
+task.spawn(function()
+    task.wait(1)
+    local ok = false
+    for i = 1, 10 do
+        local st = applyForceBackground(DEFAULT_BG_ID)
+        if st:find("Успешно") then ok = true; break end
+        task.wait(1)
+    end
+    if ok then
+        WindUI:Notify({Title = "kemlopHud", Content = "Фон успешно загружен!", Duration = 3})
+    else
+        WindUI:Notify({Title = "Внимание", Content = "Не удалось найти окно. Смените фон вручную.", Duration = 5})
+    end
+end)
+
+-- ============================================================
+-- ВКЛАДКИ
+-- ============================================================
 local Tabs = {
     Farm     = Window:Tab({ Title = "🐱 Фарм", Icon = "home" }),
     Aim      = Window:Tab({ Title = "🎯 Аим", Icon = "crosshair" }),
@@ -50,7 +179,6 @@ local function getHRP() local c = getChar(); return c and c:FindFirstChild("Huma
 local function getHum() local c = getChar(); return c and c:FindFirstChildOfClass("Humanoid") end
 local function notify(t, c) WindUI:Notify({Title = t, Content = c, Duration = 3}) end
 
--- Поиск Убийцы (безопасный)
 local function getMurderer()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
@@ -62,6 +190,14 @@ local function getMurderer()
         end
     end
     return nil
+end
+
+local function getRole(p)
+    local c, b = p.Character, p:FindFirstChild("Backpack")
+    if not c then return "Innocent" end
+    if c:FindFirstChild("Knife") or (b and b:FindFirstChild("Knife")) then return "Murderer"
+    elseif c:FindFirstChild("Gun") or (b and b:FindFirstChild("Gun")) then return "Sheriff"
+    else return "Innocent" end
 end
 
 -- ============================================================
@@ -76,7 +212,7 @@ local currentTargetCoin = nil
 local lastBlockTime = 0
 
 -- ============================================================
--- 🐱 ФАРМ (Плавный полет)
+-- 🐱 ФАРМ
 -- ============================================================
 local function getNearestCoin()
     local hrp = getHRP(); if not hrp then return nil end
@@ -144,7 +280,7 @@ local function stopFarm()
 end
 
 -- ============================================================
--- 🎯 АИМ (Плавный, в отдельном потоке)
+-- 🎯 АИМ
 -- ============================================================
 task.spawn(function()
     while task.wait(0.05) do
@@ -162,9 +298,6 @@ task.spawn(function()
     end
 end)
 
--- ============================================================
--- 🔫 АВТО-СТРЕЛЬБА И БЛОК
--- ============================================================
 task.spawn(function()
     while task.wait(0.1) do
         local target = getMurderer()
@@ -173,8 +306,7 @@ task.spawn(function()
 
         if target and target.Character and myHrp and char then
             local tHead = target.Character:FindFirstChild("Head") or target.Character:FindFirstChild("HumanoidRootPart")
-            
-            -- Авто-стрельба
+
             if AutoShootEnabled and tHead then
                 local gun = char:FindFirstChild("Gun")
                 if gun and (tHead.Position - myHrp.Position).Magnitude < 100 then
@@ -182,7 +314,6 @@ task.spawn(function()
                 end
             end
 
-            -- Блок Убийцы (с кулдауном 1 сек)
             if BlockMurdererEnabled and tHead then
                 local dist = (tHead.Position - myHrp.Position).Magnitude
                 if dist < 12 and (tick() - lastBlockTime > 1) then
@@ -198,21 +329,13 @@ end)
 -- ============================================================
 -- 👁 ESP
 -- ============================================================
-local function getRole(p)
-    local c, b = p.Character, p:FindFirstChild("Backpack")
-    if not c then return "Innocent" end
-    if c:FindFirstChild("Knife") or (b and b:FindFirstChild("Knife")) then return "Murderer"
-    elseif c:FindFirstChild("Gun") or (b and b:FindFirstChild("Gun")) then return "Sheriff"
-    else return "Innocent" end
-end
-
 local function applyESP(p)
     if not ESPEnabled or p == LocalPlayer or not p.Character then return end
     local role = getRole(p)
     local color = Color3.fromRGB(0, 255, 0)
     if role == "Murderer" then color = Color3.fromRGB(255, 0, 0)
     elseif role == "Sheriff" then color = Color3.fromRGB(0, 150, 255) end
-    
+
     if ESPObjects[p] then ESPObjects[p]:Destroy() end
     local hl = Instance.new("Highlight")
     hl.Adornee = p.Character
@@ -234,9 +357,6 @@ local function refreshESP()
     end
 end
 
--- ============================================================
--- ⚔️ АУРА
--- ============================================================
 task.spawn(function()
     while task.wait(0.1) do
         if AuraEnabled and getRole(LocalPlayer) == "Murderer" then
@@ -258,34 +378,23 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- ВКЛАДКА 1: ФАРМ
+-- ⚙️ ИНТЕРФЕЙС
 -- ============================================================
 Tabs.Farm:Section({ Title = "🐱 Настройки фарма" })
-Tabs.Farm:Toggle({ Title = "Включить автофарм", Value = false, Callback = function(s) 
-    if s then startFarm() else stopFarm() end 
-end })
+Tabs.Farm:Toggle({ Title = "Включить автофарм", Value = false, Callback = function(s) if s then startFarm() else stopFarm() end end })
 Tabs.Farm:Slider({ Title = "Скорость полета", Value = { Min = 50, Max = 300, Default = 150 }, Callback = function(v) FlySpeed = v end })
 Tabs.Farm:Slider({ Title = "Монет до респавна", Value = { Min = 10, Max = 50, Default = 40 }, Callback = function(v) MaxCoins = v end })
-Tabs.Farm:Button({ Title = "ТП под карту", Callback = function() local h = getHRP(); if h then h.CFrame = CFrame.new(0, -50, 0) end end })
 
--- ============================================================
--- ВКЛАДКА 2: АИМ
--- ============================================================
 Tabs.Aim:Section({ Title = "🎯 Настройки Аимбота" })
-Tabs.Aim:Toggle({ Title = "Аим на Убийцу", Desc = "Плавно наводит камеру на Murderer", Value = false, Callback = function(s) AimEnabled = s end })
+Tabs.Aim:Toggle({ Title = "Аим на Убийцу", Value = false, Callback = function(s) AimEnabled = s end })
 Tabs.Aim:Slider({ Title = "Плавность аима", Value = { Min = 0.05, Max = 0.8, Default = 0.2 }, Callback = function(v) AimSmoothness = v end })
+Tabs.Aim:Toggle({ Title = "Авто-стрельба", Value = false, Callback = function(s) AutoShootEnabled = s end })
+Tabs.Aim:Toggle({ Title = "🛡 Блок Убийцы", Value = false, Callback = function(s) BlockMurdererEnabled = s end })
 
-Tabs.Aim:Section({ Title = "🔫 Стрельба и Защита" })
-Tabs.Aim:Toggle({ Title = "Авто-стрельба", Desc = "Стреляет из пистолета по Убийце", Value = false, Callback = function(s) AutoShootEnabled = s end })
-Tabs.Aim:Toggle({ Title = "🛡 Блок Убийцы", Desc = "Телепорт вверх при опасности", Value = false, Callback = function(s) BlockMurdererEnabled = s end })
-
--- ============================================================
--- ВКЛАДКА 3: ВИЗУАЛЫ
--- ============================================================
 Tabs.Visual:Section({ Title = "👁 Подсветка" })
 Tabs.Visual:Toggle({ Title = "ESP (Сквозь стены)", Value = false, Callback = function(s) ESPEnabled = s; refreshESP() end })
 
-Tabs.Visual:Section({ Title = "🎨 Визуальные переключатели" })
+Tabs.Visual:Section({ Title = "🎨 10 Визуальных переключателей" })
 local DefBrightness = Lighting.Brightness
 local DefFog = Lighting.FogEnd
 local DefAmbient = Lighting.Ambient
@@ -302,15 +411,9 @@ Tabs.Visual:Toggle({ Title = "8. 🔎 Отдалить (FOV 70)", Value = false,
 Tabs.Visual:Toggle({ Title = "9. 🌈 Убрать эффекты", Value = false, Callback = function(s) for _,v in ipairs(Lighting:GetChildren()) do if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v.Enabled = not s end end end })
 Tabs.Visual:Button({ Title = "10. 🔄 Обновить ESP", Callback = refreshESP })
 
--- ============================================================
--- ВКЛАДКА 4: БОЙ
--- ============================================================
 Tabs.Combat:Section({ Title = "⚔️ Бой" })
 Tabs.Combat:Toggle({ Title = "Kill Aura (Убийца)", Value = false, Callback = function(s) AuraEnabled = s end })
 
--- ============================================================
--- ВКЛАДКА 5: ДВИЖЕНИЕ
--- ============================================================
 Tabs.Move:Section({ Title = "🏃 Движение" })
 Tabs.Move:Slider({ Title = "Скорость ходьбы", Value = { Min = 16, Max = 200, Default = 16 }, Callback = function(v) local h = getHum(); if h then h.WalkSpeed = v end end })
 Tabs.Move:Button({ Title = "Включить Noclip", Callback = function() 
@@ -318,4 +421,26 @@ Tabs.Move:Button({ Title = "Включить Noclip", Callback = function()
     notify("Noclip", "Включен!")
 end })
 
-print("[kemlopHud STABLE] Загружено успешно. Все проверки на nil пройдены.")
+Tabs.Settings:Section({ Title = "🖼 Смена фона интерфейса" })
+Tabs.Settings:Dropdown({
+    Title = "Выбери картинку",
+    Values = {"Моя (121182458846548)", "Фон 2 (99779444419307)", "Фон 3 (108781708883441)", "Фон 4 (116954976050470)"},
+    Default = "Моя (121182458846548)",
+    Callback = function(val)
+        local id = Backgrounds[val]
+        if id then
+            local status = applyForceBackground(id)
+            notify("Фон", status)
+        end
+    end
+})
+
+Tabs.Settings:Button({
+    Title = "🔄 Переприменить фон",
+    Callback = function()
+        local st = applyForceBackground(DEFAULT_BG_ID)
+        notify("Фон", st)
+    end
+})
+
+print("[kemlopHud ULTIMATE] Загружено успешно!")
