@@ -1,5 +1,5 @@
 -- ============================================================
--- 🐱 kemlopHud FINAL ULTIMATE | Hydro Hub & Executor Fix
+-- 🐱 kemlopHud FINAL ULTIMATE | Clean Version (No Backgrounds)
 -- ============================================================
 
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
@@ -10,132 +10,18 @@ local Workspace   = game:GetService("Workspace")
 local Lighting    = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 
-local Backgrounds = {
-    ["Моя (121182458846548)"]   = "121182458846548",
-    ["Фон 2 (99779444419307)"]  = "99779444419307",
-    ["Фон 3 (108781708883441)"] = "108781708883441",
-    ["Фон 4 (116954976050470)"] = "116954976050470"
-}
-local DEFAULT_BG_ID = "121182458846548"
-
--- Создаем окно
+-- ============================================================
+-- ОКНО (Стандартное, без картинок и прозрачности)
+-- ============================================================
 local Window = WindUI:CreateWindow({
     Title = "kemlopHud",
     Author = "kemlopHud",
     Folder = "kemlopHudStable",
-    Icon = "rbxassetid://" .. DEFAULT_BG_ID,
+    Icon = "rbxassetid://121182458846548", -- Иконка в углу окна
     Theme = "Dark",
     Size = UDim2.fromOffset(600, 480),
     Transparent = true
 })
-
--- ============================================================
--- 🛠 ОЧЕНЬ БЕЗОПАСНЫЙ И БЫСТРЫЙ ПОИСК ОКНА
--- ============================================================
-local function getMainFrame()
-    -- 1. Прямой доступ к свойствам WindUI
-    for _, name in ipairs({"Main", "Frame", "Window", "Root", "Instance"}) do
-        local ok, val = pcall(function() return Window[name] end)
-        if ok and typeof(val) == "Instance" and val:IsA("GuiObject") then
-            return val
-        end
-    end
-
-    -- 2. Безопасный поиск через защищенные вызовы (без краша хаба)
-    local function findFrameInGui(gui)
-        if not gui then return nil end
-        for _, obj in ipairs(gui:GetDescendants()) do
-            if obj:IsA("TextLabel") and (obj.Text == "kemlopHud" or obj.Text == "kemlopHud ") then
-                local p = obj.Parent
-                while p and p ~= gui do
-                    if (p:IsA("Frame") or p:IsA("CanvasGroup")) and p.AbsoluteSize.X > 400 and p.AbsoluteSize.Y > 300 then
-                        return p
-                    end
-                    p = p.Parent
-                end
-            end
-        end
-        return nil
-    end
-
-    local hui = nil
-    local ok1, g1 = pcall(gethui)
-    if ok1 and g1 then hui = g1 else
-        local ok2, g2 = pcall(function() return game:GetService("CoreGui") end)
-        if ok2 and g2 then hui = g2 end
-    end
-
-    if hui then
-        for _, v in ipairs(hui:GetChildren()) do
-            if v:IsA("ScreenGui") then
-                local f = findFrameInGui(v)
-                if f then return f end
-            end
-        end
-    end
-
-    -- 3. Резервный поиск в PlayerGui
-    local ok3, pg = pcall(function() return LocalPlayer:WaitForChild("PlayerGui", 2) end)
-    if ok3 and pg then
-        for _, v in ipairs(pg:GetChildren()) do
-            if v:IsA("ScreenGui") then
-                local f = findFrameInGui(v)
-                if f then return f end
-            end
-        end
-    end
-
-    return nil
-end
-
-local function applyForceBackground(imageId)
-    local mainFrame = getMainFrame()
-    if not mainFrame then return "Ошибка: Окно не найдено" end
-
-    local old = mainFrame:FindFirstChild("ForceBG")
-    if old then old:Destroy() end
-
-    local bg = Instance.new("ImageLabel")
-    bg.Name = "ForceBG"
-    bg.Size = UDim2.fromScale(1, 1)
-    bg.Position = UDim2.fromScale(0, 0)
-    bg.BackgroundTransparency = 1
-    bg.BorderSizePixel = 0
-    bg.Image = "rbxassetid://" .. imageId
-    bg.ImageTransparency = 0.35
-    bg.ScaleType = Enum.ScaleType.Crop
-    bg.ZIndex = 0
-    bg.Parent = mainFrame
-
-    mainFrame.ClipsDescendants = true
-
-    -- Поднимаем элементы интерфейса выше фона
-    for _, obj in ipairs(mainFrame:GetDescendants()) do
-        if obj:IsA("GuiObject") and obj ~= bg and not obj:IsDescendantOf(bg) then
-            if obj.ZIndex <= 0 then
-                obj.ZIndex = 1
-            end
-        end
-    end
-
-    return "Успешно!"
-end
-
--- Авто-применение фона при запуске (ждем до 15 секунд, если хаб тормозит)
-task.spawn(function()
-    task.wait(1)
-    local ok = false
-    for i = 1, 15 do
-        local st = applyForceBackground(DEFAULT_BG_ID)
-        if st:find("Успешно") then ok = true; break end
-        task.wait(1)
-    end
-    if ok then
-        WindUI:Notify({Title = "kemlopHud", Content = "Фон успешно загружен!", Duration = 3})
-    else
-        WindUI:Notify({Title = "Внимание", Content = "Не удалось найти окно. Смените фон вручную.", Duration = 5})
-    end
-end)
 
 -- ============================================================
 -- ВКЛАДКИ
@@ -190,7 +76,7 @@ local currentTargetCoin = nil
 local lastBlockTime = 0
 
 -- ============================================================
--- 🐱 ФАРМ
+-- 🐱 ФАРМ (Плавный полет)
 -- ============================================================
 local function getNearestCoin()
     local hrp = getHRP(); if not hrp then return nil end
@@ -258,7 +144,7 @@ local function stopFarm()
 end
 
 -- ============================================================
--- 🎯 АИМ
+-- 🎯 АИМ И АВТО-СТРЕЛЬБА
 -- ============================================================
 task.spawn(function()
     while task.wait(0.05) do
@@ -305,7 +191,7 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- 👁 ESP
+-- 👁 ESP И АУРА
 -- ============================================================
 local function applyESP(p)
     if not ESPEnabled or p == LocalPlayer or not p.Character then return end
@@ -356,19 +242,25 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- ⚙️ ИНТЕРФЕЙС
+-- ⚙️ НАСТРОЙКА ИНТЕРФЕЙСА
 -- ============================================================
+
+-- 1. ФАРМ
 Tabs.Farm:Section({ Title = "🐱 Настройки фарма" })
-Tabs.Farm:Toggle({ Title = "Включить автофарм", Value = false, Callback = function(s) if s then startFarm() else stopFarm() end end })
+Tabs.Farm:Toggle({ Title = "Включить автофарм", Value = false, Callback = function(s) 
+    if s then startFarm() else stopFarm() end 
+end })
 Tabs.Farm:Slider({ Title = "Скорость полета", Value = { Min = 50, Max = 300, Default = 150 }, Callback = function(v) FlySpeed = v end })
 Tabs.Farm:Slider({ Title = "Монет до респавна", Value = { Min = 10, Max = 50, Default = 40 }, Callback = function(v) MaxCoins = v end })
 
+-- 2. АИМ
 Tabs.Aim:Section({ Title = "🎯 Настройки Аимбота" })
 Tabs.Aim:Toggle({ Title = "Аим на Убийцу", Value = false, Callback = function(s) AimEnabled = s end })
 Tabs.Aim:Slider({ Title = "Плавность аима", Value = { Min = 0.05, Max = 0.8, Default = 0.2 }, Callback = function(v) AimSmoothness = v end })
 Tabs.Aim:Toggle({ Title = "Авто-стрельба", Value = false, Callback = function(s) AutoShootEnabled = s end })
 Tabs.Aim:Toggle({ Title = "🛡 Блок Убийцы", Value = false, Callback = function(s) BlockMurdererEnabled = s end })
 
+-- 3. ВИЗУАЛЫ
 Tabs.Visual:Section({ Title = "👁 Подсветка" })
 Tabs.Visual:Toggle({ Title = "ESP (Сквозь стены)", Value = false, Callback = function(s) ESPEnabled = s; refreshESP() end })
 
@@ -389,9 +281,11 @@ Tabs.Visual:Toggle({ Title = "8. 🔎 Отдалить (FOV 70)", Value = false,
 Tabs.Visual:Toggle({ Title = "9. 🌈 Убрать эффекты", Value = false, Callback = function(s) for _,v in ipairs(Lighting:GetChildren()) do if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then v.Enabled = not s end end end })
 Tabs.Visual:Button({ Title = "10. 🔄 Обновить ESP", Callback = refreshESP })
 
+-- 4. БОЙ
 Tabs.Combat:Section({ Title = "⚔️ Бой" })
 Tabs.Combat:Toggle({ Title = "Kill Aura (Убийца)", Value = false, Callback = function(s) AuraEnabled = s end })
 
+-- 5. ДВИЖЕНИЕ
 Tabs.Move:Section({ Title = "🏃 Движение" })
 Tabs.Move:Slider({ Title = "Скорость ходьбы", Value = { Min = 16, Max = 200, Default = 16 }, Callback = function(v) local h = getHum(); if h then h.WalkSpeed = v end end })
 Tabs.Move:Button({ Title = "Включить Noclip", Callback = function() 
@@ -399,26 +293,8 @@ Tabs.Move:Button({ Title = "Включить Noclip", Callback = function()
     notify("Noclip", "Включен!")
 end })
 
-Tabs.Settings:Section({ Title = "🖼 Смена фона интерфейса" })
-Tabs.Settings:Dropdown({
-    Title = "Выбери картинку",
-    Values = {"Моя (121182458846548)", "Фон 2 (99779444419307)", "Фон 3 (108781708883441)", "Фон 4 (116954976050470)"},
-    Default = "Моя (121182458846548)",
-    Callback = function(val)
-        local id = Backgrounds[val]
-        if id then
-            local status = applyForceBackground(id)
-            notify("Фон", status)
-        end
-    end
-})
+-- 6. НАСТРОЙКИ (Информация)
+Tabs.Settings:Section({ Title = "⚙️ Информация" })
+Tabs.Settings:Paragraph({ Title = "kemlopHud", Desc = "Версия: Ultimate Clean\nСкрипт полностью стабилен.\nФункция кастомных фонов была удалена для предотвращения багов." })
 
-Tabs.Settings:Button({
-    Title = "🔄 Переприменить фон",
-    Callback = function()
-        local st = applyForceBackground(DEFAULT_BG_ID)
-        notify("Фон", st)
-    end
-})
-
-print("[kemlopHud ULTIMATE] Загружено успешно!")
+print("[kemlopHud ULTIMATE] Загружено успешно без багов!")
