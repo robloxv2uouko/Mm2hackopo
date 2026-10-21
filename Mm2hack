@@ -1,5 +1,5 @@
 -- ============================================================
--- 🐱 kemlopHud FINAL ULTIMATE | Bulletproof Fix
+-- 🐱 kemlopHud FINAL ULTIMATE | Hydro Hub & Executor Fix
 -- ============================================================
 
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
@@ -18,7 +18,7 @@ local Backgrounds = {
 }
 local DEFAULT_BG_ID = "121182458846548"
 
--- Создаем окно БЕЗ фона, чтобы WindUI не залил кнопки
+-- Создаем окно
 local Window = WindUI:CreateWindow({
     Title = "kemlopHud",
     Author = "kemlopHud",
@@ -30,91 +30,71 @@ local Window = WindUI:CreateWindow({
 })
 
 -- ============================================================
--- 🛠 УЛЬТРА-БЕЗОПАСНЫЙ ПОИСК ОКНА
+-- 🛠 ОЧЕНЬ БЕЗОПАСНЫЙ И БЫСТРЫЙ ПОИСК ОКНА
 -- ============================================================
 local function getMainFrame()
-    -- 1. Прямой поиск по свойствам объекта Window
-    local props = {"Main", "Frame", "Window", "Root", "Gui", "MainFrame", "Instance", "Holder", "Container"}
-    for _, prop in ipairs(props) do
-        local ok, val = pcall(function() return Window[prop] end)
+    -- 1. Прямой доступ к свойствам WindUI
+    for _, name in ipairs({"Main", "Frame", "Window", "Root", "Instance"}) do
+        local ok, val = pcall(function() return Window[name] end)
         if ok and typeof(val) == "Instance" and val:IsA("GuiObject") then
             return val
         end
     end
 
-    -- 2. Поиск через ScreenGui по заголовку "kemlopHud"
-    local screens = {}
-    local function scan(parent)
-        for _, v in pairs(parent:GetChildren()) do
-            if v:IsA("ScreenGui") and v.Enabled then
-                -- Ищем текст "kemlopHud" внутри
-                for _, d in pairs(v:GetDescendants()) do
-                    if d:IsA("TextLabel") and d.Text and d.Text:lower():find("kemlophud") then
-                        table.insert(screens, v)
-                        break
+    -- 2. Безопасный поиск через защищенные вызовы (без краша хаба)
+    local function findFrameInGui(gui)
+        if not gui then return nil end
+        for _, obj in ipairs(gui:GetDescendants()) do
+            if obj:IsA("TextLabel") and (obj.Text == "kemlopHud" or obj.Text == "kemlopHud ") then
+                local p = obj.Parent
+                while p and p ~= gui do
+                    if (p:IsA("Frame") or p:IsA("CanvasGroup")) and p.AbsoluteSize.X > 400 and p.AbsoluteSize.Y > 300 then
+                        return p
                     end
+                    p = p.Parent
                 end
-            elseif v:IsA("Folder") then
-                scan(v) -- Рекурсивно проверяем папки
+            end
+        end
+        return nil
+    end
+
+    local hui = nil
+    local ok1, g1 = pcall(gethui)
+    if ok1 and g1 then hui = g1 else
+        local ok2, g2 = pcall(function() return game:GetService("CoreGui") end)
+        if ok2 and g2 then hui = g2 end
+    end
+
+    if hui then
+        for _, v in ipairs(hui:GetChildren()) do
+            if v:IsA("ScreenGui") then
+                local f = findFrameInGui(v)
+                if f then return f end
             end
         end
     end
 
-    if gethui then scan(gethui()) end
-    scan(game:GetService("CoreGui"))
-    scan(LocalPlayer:WaitForChild("PlayerGui"))
-
-    if #screens > 0 then
-        local screen = screens[1]
-        -- Находим самый большой Frame внутри этого ScreenGui
-        local bestFrame, maxArea = nil, 0
-        for _, obj in pairs(screen:GetDescendants()) do
-            if (obj:IsA("Frame") or obj:IsA("CanvasGroup")) and obj.Visible then
-                local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
-                if area > maxArea and obj.AbsoluteSize.X > 300 and obj.AbsoluteSize.Y > 200 then
-                    maxArea = area
-                    bestFrame = obj
-                end
-            end
-        end
-        if bestFrame then return bestFrame end
-    end
-
-    -- 3. Запасной вариант: ищем просто самый большой Frame в CoreGui
-    local fallbackFrame, maxArea = nil, 0
-    local function scanAll(parent)
-        for _, v in pairs(parent:GetChildren()) do
-            if v:IsA("ScreenGui") and v.Enabled then
-                for _, obj in pairs(v:GetDescendants()) do
-                    if (obj:IsA("Frame") or obj:IsA("CanvasGroup")) and obj.Visible then
-                        local area = obj.AbsoluteSize.X * obj.AbsoluteSize.Y
-                        if area > maxArea and obj.AbsoluteSize.X > 400 and obj.AbsoluteSize.X < 1000 and obj.AbsoluteSize.Y > 300 then
-                            maxArea = area
-                            fallbackFrame = obj
-                        end
-                    end
-                end
-            elseif v:IsA("Folder") then
-                scanAll(v)
+    -- 3. Резервный поиск в PlayerGui
+    local ok3, pg = pcall(function() return LocalPlayer:WaitForChild("PlayerGui", 2) end)
+    if ok3 and pg then
+        for _, v in ipairs(pg:GetChildren()) do
+            if v:IsA("ScreenGui") then
+                local f = findFrameInGui(v)
+                if f then return f end
             end
         end
     end
 
-    if gethui then scanAll(gethui()) end
-    scanAll(game:GetService("CoreGui"))
-    
-    return fallbackFrame
+    return nil
 end
 
 local function applyForceBackground(imageId)
     local mainFrame = getMainFrame()
     if not mainFrame then return "Ошибка: Окно не найдено" end
 
-    -- Удаляем старый фон, если есть
     local old = mainFrame:FindFirstChild("ForceBG")
     if old then old:Destroy() end
 
-    -- Создаем новый фон
     local bg = Instance.new("ImageLabel")
     bg.Name = "ForceBG"
     bg.Size = UDim2.fromScale(1, 1)
@@ -122,13 +102,11 @@ local function applyForceBackground(imageId)
     bg.BackgroundTransparency = 1
     bg.BorderSizePixel = 0
     bg.Image = "rbxassetid://" .. imageId
-    bg.ImageTransparency = 0.3
+    bg.ImageTransparency = 0.35
     bg.ScaleType = Enum.ScaleType.Crop
     bg.ZIndex = 0
     bg.Parent = mainFrame
 
-    -- Делаем фон окна прозрачным (чтобы не было черного квадрата)
-    mainFrame.BackgroundTransparency = 1
     mainFrame.ClipsDescendants = true
 
     -- Поднимаем элементы интерфейса выше фона
@@ -140,14 +118,14 @@ local function applyForceBackground(imageId)
         end
     end
 
-    return "Успешно применено!"
+    return "Успешно!"
 end
 
--- Авто-применение фона при запуске (с ретраями)
+-- Авто-применение фона при запуске (ждем до 15 секунд, если хаб тормозит)
 task.spawn(function()
     task.wait(1)
     local ok = false
-    for i = 1, 10 do
+    for i = 1, 15 do
         local st = applyForceBackground(DEFAULT_BG_ID)
         if st:find("Успешно") then ok = true; break end
         task.wait(1)
