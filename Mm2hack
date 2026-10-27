@@ -68,10 +68,8 @@ kemlopLoading.set(0.15,"Загружаю меню")
 local Players=game:GetService("Players")
 local RS=game:GetService("RunService")
 local UIS=game:GetService("UserInputService")
-local Lighting=game:GetService("Lighting")
 local CoreGui=game:GetService("CoreGui")
 local SG=game:GetService("StarterGui")
-local VU=game:GetService("VirtualUser")
 local RepStorage=game:GetService("ReplicatedStorage")
 local lp=Players.LocalPlayer
 local cam=workspace.CurrentCamera
@@ -82,15 +80,15 @@ local function guiParent()
     return (ok and p) or CoreGui
 end
 
--- ================= WINDUI =================
+-- ================= БЕЗОПАСНАЯ ЗАГРУЗКА WINDUI =================
 local WindUI
 do
     local ok,res=pcall(function()
         return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
     end)
     if not ok or type(res)~="table" then
-        pcall(function() SG:SetCore("SendNotification",{Title="kemlopHud",Text="WindUI не загрузился",Duration=6}) end)
-        warn(res)
+        warn("WindUI не загрузился:",res)
+        pcall(function() SG:SetCore("SendNotification",{Title="kemlopHud",Text="WindUI не загрузился.",Duration=6}) end)
         kemlopLoading.finish()
         return
     end
@@ -98,10 +96,20 @@ do
 end
 local function notify(t,c) pcall(function() WindUI:Notify({Title=t,Content=c,Duration=4}) end) end
 
-local Window=WindUI:CreateWindow({
-    Title="kemlopHud",Icon="layout-dashboard",Author="v9",Folder="kemlopHud",
-    Size=UDim2.fromOffset(580,460),Theme="Dark",
-})
+-- ================= СОЗДАНИЕ ОКНА =================
+local Window
+local okWin, errWin = pcall(function()
+    Window=WindUI:CreateWindow({
+        Title="kemlopHud",Icon="layout-dashboard",Author="v9",Folder="kemlopHud",
+        Size=UDim2.fromOffset(580,460),Theme="Dark",
+    })
+end)
+
+if not okWin or not Window then
+    warn("Ошибка создания окна WindUI:", errWin)
+    kemlopLoading.finish()
+    return
+end
 
 kemlopLoading.set(0.3,"Создаю окно")
 
@@ -129,11 +137,12 @@ local function rootOf(p) local c=p and p.Character return c and c:FindFirstChild
 -- ================= СОСТОЯНИЕ =================
 local S={
     Farm=false,Speed=50,Depth=3,Dist=300,AutoDie=true,Limit=50,Pause=false,
-    Noclip=false,CoinESP=false,GunESP=false,AutoGun=false,
+    Noclip=false,CoinESP=false,RoleESP=false,GunESP=false,AutoGun=false,
     Aura=false,Range=15,
     AutoShoot=false,ShootRange=200,Delay=15,NeedLOS=true,AimPart="Туловище",Predict=8,
     CamAim=false,Smooth=25,Debug=false,AimMode="Убийца (авто)",IgnoreWalls=false,FOVEnabled=false,FOVRadius=250,AimHoldMode=false,
     Walk=false,WSpd=16,Jump=false,JPow=50,Inf=false,Fly=false,FlySpd=60,Pose="Хоумлендер",FlyAnim=true,FlyFx=true,
+    AntiFling=true,
     AKick=false,Safe=false,AVoid=false,FlingK=false,Target=nil,
 }
 local count,dying=0,false
@@ -164,7 +173,6 @@ end
 
 -- ================= РОЛИ =================
 local ROLE_COLORS={Murderer=Color3.fromRGB(255,60,60),Sheriff=Color3.fromRGB(60,130,255),Innocent=Color3.fromRGB(80,255,120)}
-local ROLE_RU={Murderer="Убийца",Sheriff="Шериф",Innocent="Невиновный"}
 local roleCache,getDataRF={},nil
 
 loop(2,function()
@@ -220,16 +228,41 @@ local function getRole(plr)
     return r
 end
 local function byRole(name) for _,p in ipairs(Players:GetPlayers()) do if p~=lp and getRole(p)==name then return p end end end
-local function names()
-    local t={}
-    for _,p in ipairs(Players:GetPlayers()) do if p~=lp then t[#t+1]=p.Name end end
-    return t
-end
 local function alive(plr) local h=plr and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") return h and h.Health>0 end
 
--- ================= МОНЕТЫ =================
+-- ================= ESP РОЛЕЙ =================
+local roleHL = {}
+hb(function()
+    if not S.RoleESP then
+        for plr, hl in pairs(roleHL) do if hl and hl.Parent then hl:Destroy() end end
+        roleHL = {}
+        return
+    end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= lp and plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0 then
+            local role = getRole(plr)
+            local col = ROLE_COLORS[role] or Color3.new(1,1,1)
+            local hl = roleHL[plr]
+            if not hl or not hl.Parent then
+                hl = Instance.new("Highlight")
+                hl.Name = "RoleESP"
+                hl.FillColor = col
+                hl.OutlineColor = col
+                hl.FillTransparency = 0.5
+                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                hl.Parent = plr.Character
+                roleHL[plr] = hl
+            else
+                hl.FillColor = col
+                hl.OutlineColor = col
+            end
+        end
+    end
+end)
+
+-- ================= МОНЕТЫ И ESP =================
 local coinList,lastScan={},0
-local function isCoin(o) return o:IsA("BasePart") and o.Name:lower()=="coin_server" end
+local function isCoin(o) return o:IsA("BasePart") and (o.Name:lower():find("coin") or o.Name:lower():find("money")) end
 loop(0.5,function()
     if not(S.Farm or S.CoinESP) then return end
     local l,found={},false
@@ -242,12 +275,63 @@ loop(0.5,function()
         end
     end
     if not found then
-        if tick()-lastScan<5 then return end
+        if tick()-lastScan<2 then return end
         lastScan=tick()
         for _,o in ipairs(workspace:GetDescendants()) do if isCoin(o) then l[#l+1]=o end end
     end
     coinList=l
 end)
+
+local coinEspCache = {}
+RS.RenderStepped:Connect(function()
+    if not S.CoinESP then
+        for part,hl in pairs(coinEspCache) do if hl and hl.Parent then hl:Destroy() end end
+        coinEspCache = {}
+        return
+    end
+    for _, c in ipairs(coinList) do
+        if c.Parent and not coinEspCache[c] then
+            local hl = Instance.new("Highlight")
+            hl.Adornee = c
+            hl.FillColor = Color3.fromRGB(255, 200, 40)
+            hl.OutlineColor = Color3.new(1,1,1)
+            hl.FillTransparency = 0.2
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = c
+            coinEspCache[c] = hl
+        end
+    end
+end)
+
+-- ================= ESP ОРУЖИЯ =================
+local gunEspCache = {}
+RS.RenderStepped:Connect(function()
+    if not S.GunESP then
+        for tool, hl in pairs(gunEspCache) do if hl and hl.Parent then hl:Destroy() end end
+        gunEspCache = {}
+        return
+    end
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("Tool") then
+            local n = obj.Name:lower()
+            if n:find("gun") or n:find("knife") or n:find("revolver") then
+                if not gunEspCache[obj] then
+                    local hl = Instance.new("Highlight")
+                    hl.Adornee = obj
+                    hl.FillColor = Color3.fromRGB(255, 165, 0)
+                    hl.OutlineColor = Color3.new(1,1,1)
+                    hl.FillTransparency = 0.3
+                    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    hl.Parent = obj
+                    gunEspCache[obj] = hl
+                end
+            end
+        end
+    end
+end)
+
+-- ================= ФАРМ =================
+local visited,curCoin,holdBV,below={},nil,nil,false
 local function isFresh(c) return c.Parent and c:FindFirstChildWhichIsA("TouchTransmitter")~=nil end
 local function inLobby()
     local r=gr() if not r then return true end
@@ -261,9 +345,6 @@ local function inLobby()
     end
     return false
 end
-
--- ================= ФАРМ =================
-local visited,curCoin,holdBV,below={},nil,nil,false
 local function pick()
     local r=gr() if not r then return end
     local now,anyF=tick(),false
@@ -336,7 +417,7 @@ end)
 local FlingNC=false
 local ncParts,ncAt,ncChar={},0,nil
 RS.Stepped:Connect(function()
-    if not(S.Noclip or S.Farm or FlingNC) then return end
+    if not(S.Noclip or S.Farm or S.Fly or FlingNC) then return end
     local c=lp.Character
     if not c then return end
     if c~=ncChar or tick()-ncAt>1 then
@@ -346,12 +427,26 @@ RS.Stepped:Connect(function()
     for i=1,#ncParts do ncParts[i].CanCollide=false end
 end)
 
--- ================= ПОЛЁТ =================
-local flyAP,flyAO,flyAtt,flyVelo,flyTrack,flyKind=nil,nil,nil,Vector3.zero,nil,nil
-local FLY_ANIMS={stand="507766666",hero="616108001"}
+-- ================= АНТИ-ФЛИНГ =================
+hb(function()
+    if not S.AntiFling or S.Fly then return end
+    local r = gr()
+    if not r then return end
+    local vel = r.AssemblyLinearVelocity
+    if vel.Magnitude > 200 then
+        r.AssemblyLinearVelocity = Vector3.zero
+        r.AssemblyAngularVelocity = Vector3.zero
+    end
+end)
+
+-- ================= ПОЛЁТ + ПЛАЩ + АНИМАЦИИ =================
+local flyBV, flyBG, flyVelo = nil, nil, Vector3.zero
+local flyTrack, flyKind = nil, nil
+local FLY_ANIMS = {stand="507766666", hero="133726220824565"}
+
 local function stopFlyAnim()
     if flyTrack then pcall(function() flyTrack:Stop(0.2) end) end
-    flyTrack,flyKind=nil,nil
+    flyTrack, flyKind = nil, nil
 end
 local function playFlyAnim(kind)
     if flyKind==kind then return end
@@ -367,132 +462,51 @@ local function playFlyAnim(kind)
         tr.Priority=Enum.AnimationPriority.Action4
         tr.Looped=true
         tr:Play(0.25)
-        flyTrack,flyKind=tr,kind
+        flyTrack, flyKind = tr, kind
     end
 end
 
-local fxCape,fxWeld,fxTrail,fxA0,fxA1,fxTopY,fxZ=nil,nil,nil,nil,nil,0.8,0.55
+-- Плащ и след
+local fxCape, fxWeld, fxTrail, fxA0, fxA1, fxTopY, fxZ = nil, nil, nil, nil, nil, 0.8, 0.55
 local function clearFx()
     for _,o in ipairs({fxCape,fxTrail,fxA0,fxA1}) do if o then pcall(function() o:Destroy() end) end end
-    fxCape,fxWeld,fxTrail,fxA0,fxA1=nil,nil,nil,nil,nil
+    fxCape, fxWeld, fxTrail, fxA0, fxA1 = nil, nil, nil, nil, nil
 end
 local function makeFx(c,r)
     clearFx()
-    local torso=c:FindFirstChild("UpperTorso") or c:FindFirstChild("Torso")
+    local torso = c:FindFirstChild("UpperTorso") or c:FindFirstChild("Torso")
     if torso then
-        fxTopY=torso.Size.Y/2
-        fxZ=torso.Size.Z/2+0.05
-        fxCape=Instance.new("Part")
-        fxCape.Name="kemlopCape" fxCape.Size=Vector3.new(2.2,3.4,0.08)
-        fxCape.Color=Color3.fromRGB(175,20,28) fxCape.Material=Enum.Material.Fabric
-        fxCape.CanCollide=false fxCape.CanQuery=false fxCape.CanTouch=false fxCape.Massless=true
-        fxCape.CastShadow=false fxCape.Parent=c
-        fxWeld=Instance.new("Weld") fxWeld.Part0=torso fxWeld.Part1=fxCape
-        fxWeld.C0=CFrame.new(0,fxTopY,fxZ)*CFrame.new(0,-1.7,0)
-        fxWeld.Parent=fxCape
+        fxTopY = torso.Size.Y/2
+        fxZ = torso.Size.Z/2 + 0.05
+        fxCape = Instance.new("Part")
+        fxCape.Name = "kemlopCape" 
+        fxCape.Size = Vector3.new(2.2, 3.4, 0.08)
+        fxCape.Color = Color3.fromRGB(175, 20, 28) 
+        fxCape.Material = Enum.Material.Fabric
+        fxCape.CanCollide = false 
+        fxCape.CanQuery = false 
+        fxCape.CanTouch = false 
+        fxCape.Massless = true
+        fxCape.CastShadow = false 
+        fxCape.Parent = c
+        fxWeld = Instance.new("Weld") 
+        fxWeld.Part0 = torso 
+        fxWeld.Part1 = fxCape
+        fxWeld.C0 = CFrame.new(0, fxTopY, fxZ) * CFrame.new(0, -1.7, 0)
+        fxWeld.Parent = fxCape
     end
-    fxA0=Instance.new("Attachment") fxA0.Position=Vector3.new(0,0.9,0.6) fxA0.Parent=r
-    fxA1=Instance.new("Attachment") fxA1.Position=Vector3.new(0,-0.9,0.6) fxA1.Parent=r
-    fxTrail=Instance.new("Trail")
-    fxTrail.Attachment0=fxA0 fxTrail.Attachment1=fxA1 fxTrail.Lifetime=0.5
-    fxTrail.Color=ColorSequence.new(Color3.fromRGB(255,70,60),Color3.fromRGB(255,255,255))
-    fxTrail.Transparency=NumberSequence.new(0.25,1)
-    fxTrail.LightEmission=0.6 fxTrail.Enabled=false fxTrail.Parent=r
+    fxA0 = Instance.new("Attachment") fxA0.Position = Vector3.new(0, 0.9, 0.6) fxA0.Parent = r
+    fxA1 = Instance.new("Attachment") fxA1.Position = Vector3.new(0, -0.9, 0.6) fxA1.Parent = r
+    fxTrail = Instance.new("Trail")
+    fxTrail.Attachment0 = fxA0 
+    fxTrail.Attachment1 = fxA1 
+    fxTrail.Lifetime = 0.5
+    fxTrail.Color = ColorSequence.new(Color3.fromRGB(255, 70, 60), Color3.fromRGB(255, 255, 255))
+    fxTrail.Transparency = NumberSequence.new(0.25, 1)
+    fxTrail.LightEmission = 0.6 
+    fxTrail.Enabled = false 
+    fxTrail.Parent = r
 end
 local function updateFx(ratio)
     if fxWeld and fxCape and fxCape.Parent then
-        local ang=-(6+62*ratio)-math.sin(tick()*14)*5*ratio
-        fxWeld.C0=CFrame.new(0,fxTopY,fxZ)*CFrame.Angles(math.rad(ang),0,0)*CFrame.new(0,-1.7,0)
-    end
-    if fxTrail then fxTrail.Enabled=ratio>0.35 end
-end
-local function flyCleanup()
-    if flyAP then flyAP:Destroy() end
-    if flyAO then flyAO:Destroy() end
-    if flyAtt then flyAtt:Destroy() end
-    flyAP,flyAO,flyAtt,flyVelo=nil,nil,nil,Vector3.zero
-    stopFlyAnim() clearFx()
-    local h=gh() if h and not S.Farm then h.PlatformStand=false end
-end
-
-RS.RenderStepped:Connect(function(dt)
-    pcall(function()
-        if (not S.Fly) or S.Farm then
-            if flyAP then flyCleanup() end
-            return
-        end
-        local r,c=gr() local h=gh()
-        if not(r and h and c) then return end
-        h.PlatformStand=true
-
-        if not(flyAP and flyAP.Parent) then
-            if flyAP then flyCleanup() h.PlatformStand=true end
-            flyAtt=Instance.new("Attachment") flyAtt.Name="FlyAtt" flyAtt.Parent=r
-            flyAP=Instance.new("AlignPosition")
-            flyAP.Mode=Enum.PositionAlignmentMode.OneAttachment
-            flyAP.Attachment0=flyAtt flyAP.MaxForce=1e9 flyAP.Responsiveness=30
-            flyAP.Position=r.Position flyAP.Parent=r
-            flyAO=Instance.new("AlignOrientation")
-            flyAO.Mode=Enum.OrientationAlignmentMode.OneAttachment
-            flyAO.Attachment0=flyAtt flyAO.MaxTorque=1e9 flyAO.Responsiveness=25
-            flyAO.CFrame=r.CFrame flyAO.Parent=r
-        end
-
-        if S.FlyFx then
-            if not(fxTrail and fxTrail.Parent) then makeFx(c,r) end
-        elseif fxTrail or fxCape then
-            clearFx()
-        end
-
-        local camCF=cam.CFrame
-        local dir=Vector3.zero
-        local mv=h.MoveDirection
-        if mv.Magnitude>0.05 then
-            local lv=camCF:VectorToObjectSpace(mv)
-            dir=camCF.LookVector*(-lv.Z)+camCF.RightVector*lv.X
-        end
-        if h.Jump or UIS:IsKeyDown(Enum.KeyCode.Space) then dir+=Vector3.new(0,1,0) end
-        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir-=Vector3.new(0,1,0) end
-        if dir.Magnitude>1 then dir=dir.Unit end
-        flyVelo=flyVelo:Lerp(dir*S.FlySpd,math.clamp(dt*6,0,1))
-
-        local ratio=math.clamp(flyVelo.Magnitude/math.max(S.FlySpd,1),0,1)
-        local pose=S.Pose
-        local f
-        if pose=="Супермен" then f=1
-        elseif pose=="Стоя" then f=0.15*ratio
-        else f=0.85*math.clamp((ratio-0.1)/0.45,0,1) end
-
-        local kind="stand"
-        if pose=="Супермен" or (pose=="Хоумлендер" and ratio>0.3) then kind="hero" end
-        playFlyAnim(kind)
-        updateFx(ratio)
-
-        flyAO.CFrame=camCF.Rotation*CFrame.Angles(math.rad(-90*f),0,0)
-        flyAP.Position=r.Position+flyVelo*dt
-    end)
-end)
-
--- ================= СКОРОСТЬ / ПРЫЖОК =================
-hb(function()
-    local h=gh()
-    if not h then return end
-    if S.Walk and h.WalkSpeed~=S.WSpd then h.WalkSpeed=S.WSpd end
-    if S.Jump then
-        h.UseJumpPower=true
-        if h.JumpPower~=S.JPow then h.JumpPower=S.JPow end
-    end
-end)
-UIS.JumpRequest:Connect(function()
-    if not S.Inf then return end
-    local h=gh()
-    if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
-end)
-
--- ================= ESP МОНЕТ =================
-local espCache={}
-RS.RenderStepped:Connect(function()
-    for part,hl in pairs(espCache) do
-        if not part.Parent or not S.CoinESP then
-            pcall(function() hl:Destroy() end)
-            espCache[part]=nil
+        local ang = -(6 + 62 * ratio) - math.sin(tick() * 14) * 5 * ratio
