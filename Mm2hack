@@ -64,7 +64,7 @@ do
 end
 kemlopLoading.set(0.15,"Загружаю меню")
 
--- kemlopHud v9 | WindUI
+-- ================= СЕРВИСЫ =================
 local Players=game:GetService("Players")
 local RS=game:GetService("RunService")
 local UIS=game:GetService("UserInputService")
@@ -82,6 +82,7 @@ local function guiParent()
     return (ok and p) or CoreGui
 end
 
+-- ================= WINDUI =================
 local WindUI
 do
     local ok,res=pcall(function()
@@ -102,7 +103,8 @@ local Window=WindUI:CreateWindow({
     Size=UDim2.fromOffset(580,460),Theme="Dark",
 })
 
-kemlopLoading.set(0.5,"Создаю окно")
+kemlopLoading.set(0.3,"Создаю окно")
+
 pcall(function()
     Window:EditOpenButton({
         Title="kemlopHud",
@@ -116,28 +118,7 @@ pcall(function()
     })
 end)
 
-task.delay(1.5, function()
-    pcall(function()
-        local sg=guiParent():FindFirstChild("WindUI")
-        if not sg then return end
-        local main=sg:FindFirstChild("MainFrame")
-        if not main then
-            for _,v in ipairs(sg:GetDescendants()) do
-                if v:IsA("Frame") and v.AbsoluteSize.X>400 and v.AbsoluteSize.Y>300 then main=v break end
-            end
-        end
-        if main then
-            local img=Instance.new("ImageLabel")
-            img.Name="CornerImage" img.Image="rbxassetid://96712761155733" img.BackgroundTransparency=1
-            img.Size=UDim2.fromOffset(80,80) img.Position=UDim2.new(1,-10,1,-10)
-            img.AnchorPoint=Vector2.new(1,1) img.ZIndex=99 img.Parent=main
-        end
-    end)
-end)
-
-----------------------------------------------------------------
--- ХЕЛПЕРЫ
-----------------------------------------------------------------
+-- ================= ХЕЛПЕРЫ =================
 local function loop(d,f) task.spawn(function() while true do task.wait(d) pcall(f) end end) end
 local function hb(f) RS.Heartbeat:Connect(function(dt) pcall(f,dt) end) end
 local function touch(a,b) if firetouchinterest then pcall(function() firetouchinterest(a,b,0) firetouchinterest(a,b,1) end) end end
@@ -145,19 +126,7 @@ local function gr() local c=lp.Character return c and c:FindFirstChild("Humanoid
 local function gh() local c=lp.Character return c and c:FindFirstChildOfClass("Humanoid") end
 local function rootOf(p) local c=p and p.Character return c and c:FindFirstChild("HumanoidRootPart") end
 
-local function Tog(tab,title,desc,default,cb)
-    tab:Toggle({Title=title,Desc=desc,Value=default,Default=default,Callback=cb})
-end
-local function Sld(tab,title,mn,mx,def,cb)
-    tab:Slider({Title=title,Step=1,Value={Min=mn,Max=mx,Default=def},Callback=cb})
-end
-local function Dd(tab,title,vals,def,cb)
-    return tab:Dropdown({Title=title,Values=vals,Value=def,Callback=function(v)
-        if type(v)=="table" then v=v[1] end
-        cb(tostring(v))
-    end})
-end
-
+-- ================= СОСТОЯНИЕ =================
 local S={
     Farm=false,Speed=50,Depth=3,Dist=300,AutoDie=true,Limit=50,Pause=false,
     Noclip=false,CoinESP=false,GunESP=false,AutoGun=false,
@@ -169,9 +138,31 @@ local S={
 }
 local count,dying=0,false
 
-----------------------------------------------------------------
--- РОЛИ
-----------------------------------------------------------------
+-- ================= ХЕЛПЕРЫ ВКЛАДОК =================
+local function Tog(tab,title,desc,key,default)
+    tab:Toggle({
+        Title=title,Desc=desc,Value=default,Default=default,
+        Callback=function(v) S[key]=v end
+    })
+end
+local function Sld(tab,title,mn,mx,key,default)
+    tab:Slider({
+        Title=title,Step=1,
+        Value={Min=mn,Max=mx,Default=default},
+        Callback=function(v) S[key]=v end
+    })
+end
+local function Dd(tab,title,vals,key,default)
+    return tab:Dropdown({
+        Title=title,Values=vals,Value=default,
+        Callback=function(v)
+            if type(v)=="table" then v=v[1] end
+            S[key]=tostring(v)
+        end
+    })
+end
+
+-- ================= РОЛИ =================
 local ROLE_COLORS={Murderer=Color3.fromRGB(255,60,60),Sheriff=Color3.fromRGB(60,130,255),Innocent=Color3.fromRGB(80,255,120)}
 local ROLE_RU={Murderer="Убийца",Sheriff="Шериф",Innocent="Невиновный"}
 local roleCache,getDataRF={},nil
@@ -236,9 +227,7 @@ local function names()
 end
 local function alive(plr) local h=plr and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") return h and h.Health>0 end
 
-----------------------------------------------------------------
--- МОНЕТЫ И ФАРМ
-----------------------------------------------------------------
+-- ================= МОНЕТЫ =================
 local coinList,lastScan={},0
 local function isCoin(o) return o:IsA("BasePart") and o.Name:lower()=="coin_server" end
 loop(0.5,function()
@@ -273,6 +262,7 @@ local function inLobby()
     return false
 end
 
+-- ================= ФАРМ =================
 local visited,curCoin,holdBV,below={},nil,nil,false
 local function pick()
     local r=gr() if not r then return end
@@ -342,6 +332,7 @@ hb(function(dt)
     r.AssemblyLinearVelocity=Vector3.zero r.AssemblyAngularVelocity=Vector3.zero
 end)
 
+-- ================= NOCLIP =================
 local FlingNC=false
 local ncParts,ncAt,ncChar={},0,nil
 RS.Stepped:Connect(function()
@@ -355,9 +346,7 @@ RS.Stepped:Connect(function()
     for i=1,#ncParts do ncParts[i].CanCollide=false end
 end)
 
-----------------------------------------------------------------
--- ПЛАВНЫЙ ПОЛЁТ (работает и на телефоне: джойстик + взгляд камеры)
-----------------------------------------------------------------
+-- ================= ПОЛЁТ =================
 local flyAP,flyAO,flyAtt,flyVelo,flyTrack,flyKind=nil,nil,nil,Vector3.zero,nil,nil
 local FLY_ANIMS={stand="507766666",hero="616108001"}
 local function stopFlyAnim()
@@ -382,7 +371,6 @@ local function playFlyAnim(kind)
     end
 end
 
--- эффекты полёта: красный плащ и след (видишь только ты)
 local fxCape,fxWeld,fxTrail,fxA0,fxA1,fxTopY,fxZ=nil,nil,nil,nil,nil,0.8,0.55
 local function clearFx()
     for _,o in ipairs({fxCape,fxTrail,fxA0,fxA1}) do if o then pcall(function() o:Destroy() end) end end
@@ -398,8 +386,7 @@ local function makeFx(c,r)
         fxCape.Name="kemlopCape" fxCape.Size=Vector3.new(2.2,3.4,0.08)
         fxCape.Color=Color3.fromRGB(175,20,28) fxCape.Material=Enum.Material.Fabric
         fxCape.CanCollide=false fxCape.CanQuery=false fxCape.CanTouch=false fxCape.Massless=true
-        fxCape.CastShadow=false
-        fxCape.Parent=c
+        fxCape.CastShadow=false fxCape.Parent=c
         fxWeld=Instance.new("Weld") fxWeld.Part0=torso fxWeld.Part1=fxCape
         fxWeld.C0=CFrame.new(0,fxTopY,fxZ)*CFrame.new(0,-1.7,0)
         fxWeld.Parent=fxCape
@@ -419,14 +406,12 @@ local function updateFx(ratio)
     end
     if fxTrail then fxTrail.Enabled=ratio>0.35 end
 end
-
 local function flyCleanup()
     if flyAP then flyAP:Destroy() end
     if flyAO then flyAO:Destroy() end
     if flyAtt then flyAtt:Destroy() end
     flyAP,flyAO,flyAtt,flyVelo=nil,nil,nil,Vector3.zero
-    stopFlyAnim()
-    clearFx()
+    stopFlyAnim() clearFx()
     local h=gh() if h and not S.Farm then h.PlatformStand=false end
 end
 
@@ -471,17 +456,43 @@ RS.RenderStepped:Connect(function(dt)
         if dir.Magnitude>1 then dir=dir.Unit end
         flyVelo=flyVelo:Lerp(dir*S.FlySpd,math.clamp(dt*6,0,1))
 
-        -- поза / наклон / анимация
         local ratio=math.clamp(flyVelo.Magnitude/math.max(S.FlySpd,1),0,1)
         local pose=S.Pose
         local f
-        if pose=="Супермен" then
-            f=1
-        elseif pose=="Стоя" then
-            f=0.15*ratio
-        else
-            -- Хоумлендер: зависает стоя, в разгоне наклоняется вперёд
-            f=0.85*math.clamp((ratio-0.1)/0.45,0,1)
-        end
+        if pose=="Супермен" then f=1
+        elseif pose=="Стоя" then f=0.15*ratio
+        else f=0.85*math.clamp((ratio-0.1)/0.45,0,1) end
 
-        local kind="
+        local kind="stand"
+        if pose=="Супермен" or (pose=="Хоумлендер" and ratio>0.3) then kind="hero" end
+        playFlyAnim(kind)
+        updateFx(ratio)
+
+        flyAO.CFrame=camCF.Rotation*CFrame.Angles(math.rad(-90*f),0,0)
+        flyAP.Position=r.Position+flyVelo*dt
+    end)
+end)
+
+-- ================= СКОРОСТЬ / ПРЫЖОК =================
+hb(function()
+    local h=gh()
+    if not h then return end
+    if S.Walk and h.WalkSpeed~=S.WSpd then h.WalkSpeed=S.WSpd end
+    if S.Jump then
+        h.UseJumpPower=true
+        if h.JumpPower~=S.JPow then h.JumpPower=S.JPow end
+    end
+end)
+UIS.JumpRequest:Connect(function()
+    if not S.Inf then return end
+    local h=gh()
+    if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+end)
+
+-- ================= ESP МОНЕТ =================
+local espCache={}
+RS.RenderStepped:Connect(function()
+    for part,hl in pairs(espCache) do
+        if not part.Parent or not S.CoinESP then
+            pcall(function() hl:Destroy() end)
+            espCache[part]=nil
