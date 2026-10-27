@@ -103,7 +103,6 @@ local Window=WindUI:CreateWindow({
 })
 
 kemlopLoading.set(0.5,"Создаю окно")
--- встроенная кнопка открытия WindUI (Color должен быть ColorSequence)
 pcall(function()
     Window:EditOpenButton({
         Title="kemlopHud",
@@ -117,7 +116,6 @@ pcall(function()
     })
 end)
 
--- картинка в углу меню
 task.delay(1.5, function()
     pcall(function()
         local sg=guiParent():FindFirstChild("WindUI")
@@ -400,6 +398,7 @@ local function makeFx(c,r)
         fxCape.Name="kemlopCape" fxCape.Size=Vector3.new(2.2,3.4,0.08)
         fxCape.Color=Color3.fromRGB(175,20,28) fxCape.Material=Enum.Material.Fabric
         fxCape.CanCollide=false fxCape.CanQuery=false fxCape.CanTouch=false fxCape.Massless=true
+        fxCape.CastShadow=false
         fxCape.Parent=c
         fxWeld=Instance.new("Weld") fxWeld.Part0=torso fxWeld.Part1=fxCape
         fxWeld.C0=CFrame.new(0,fxTopY,fxZ)*CFrame.new(0,-1.7,0)
@@ -430,6 +429,7 @@ local function flyCleanup()
     clearFx()
     local h=gh() if h and not S.Farm then h.PlatformStand=false end
 end
+
 RS.RenderStepped:Connect(function(dt)
     pcall(function()
         if (not S.Fly) or S.Farm then
@@ -439,6 +439,7 @@ RS.RenderStepped:Connect(function(dt)
         local r,c=gr() local h=gh()
         if not(r and h and c) then return end
         h.PlatformStand=true
+
         if not(flyAP and flyAP.Parent) then
             if flyAP then flyCleanup() h.PlatformStand=true end
             flyAtt=Instance.new("Attachment") flyAtt.Name="FlyAtt" flyAtt.Parent=r
@@ -451,11 +452,13 @@ RS.RenderStepped:Connect(function(dt)
             flyAO.Attachment0=flyAtt flyAO.MaxTorque=1e9 flyAO.Responsiveness=25
             flyAO.CFrame=r.CFrame flyAO.Parent=r
         end
+
         if S.FlyFx then
             if not(fxTrail and fxTrail.Parent) then makeFx(c,r) end
         elseif fxTrail or fxCape then
             clearFx()
         end
+
         local camCF=cam.CFrame
         local dir=Vector3.zero
         local mv=h.MoveDirection
@@ -468,11 +471,17 @@ RS.RenderStepped:Connect(function(dt)
         if dir.Magnitude>1 then dir=dir.Unit end
         flyVelo=flyVelo:Lerp(dir*S.FlySpd,math.clamp(dt*6,0,1))
 
+        -- поза / наклон / анимация
         local ratio=math.clamp(flyVelo.Magnitude/math.max(S.FlySpd,1),0,1)
         local pose=S.Pose
         local f
-        if pose=="Супермен" then f=1
-        elseif pose=="Стоя" then f=0.15*ratio
-        else f=0.85*math.clamp((ratio-0.1)/0.45,0,1) end -- Хоумлендер: завис стоя, в разгоне наклон вперёд
-        local kind="stand"
-        if pose=="Супермен" or (pos
+        if pose=="Супермен" then
+            f=1
+        elseif pose=="Стоя" then
+            f=0.15*ratio
+        else
+            -- Хоумлендер: зависает стоя, в разгоне наклоняется вперёд
+            f=0.85*math.clamp((ratio-0.1)/0.45,0,1)
+        end
+
+        local kind="
