@@ -14,7 +14,10 @@ do
     
     local gui = Instance.new("ScreenGui")
     gui.Name = "kemlopLoadingScreen" gui.IgnoreGuiInset = true gui.DisplayOrder = 2000 gui.ResetOnSpawn = false
-    gui.Parent = getUIParent()
+    local parent = getUIParent()
+    if syn and syn.protect_gui then syn.protect_gui(gui) end
+    if protect_gui then protect_gui(gui) end
+    gui.Parent = parent
 
     local bg = Instance.new("Frame")
     bg.Size = UDim2.new(1, 0, 1, 0) bg.Position = UDim2.new(0, 0, 0, 0)
@@ -108,6 +111,10 @@ local function httpGet(url)
         local ok3, r = pcall(function() return request({Url = url, Method = "GET"}).Body end)
         if ok3 and type(r) == "string" then return r end
     end
+    if http and http.request then
+        local ok4, r = pcall(function() return http.request({Url = url, Method = "GET"}).Body end)
+        if ok4 and type(r) == "string" then return r end
+    end
     return nil
 end
 
@@ -115,9 +122,7 @@ local WindUI
 do
     local src = httpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua")
     local ok, res = false, nil
-    if src then
-        ok, res = pcall(function() return loadstring(src)() end)
-    end
+    if src then ok, res = pcall(function() return loadstring(src)() end) end
     if (not ok) or type(res) ~= "table" then
         pcall(function() SG:SetCore("SendNotification", {Title = "kemlopHud", Text = "WindUI не загрузился", Duration = 6}) end)
         warn("WindUI load failed:", res)
@@ -138,14 +143,10 @@ local Window = WindUI:CreateWindow({
 kemlopLoading.set(0.5, "Создаю окно")
 pcall(function()
     Window:EditOpenButton({
-        Title = "kemlopHud",
-        Icon = "app-window",
-        CornerRadius = UDim.new(0, 10),
-        StrokeThickness = 2,
+        Title = "kemlopHud", Icon = "app-window",
+        CornerRadius = UDim.new(0, 10), StrokeThickness = 2,
         Color = ColorSequence.new(Color3.fromRGB(60, 190, 255), Color3.fromRGB(150, 90, 255)),
-        OnlyMobile = false,
-        Enabled = true,
-        Draggable = true,
+        OnlyMobile = false, Enabled = true, Draggable = true,
     })
 end)
 
@@ -157,17 +158,17 @@ local function hb(f) RS.Heartbeat:Connect(function(dt) pcall(f, dt) end) end
 local function touchPart(a, b)
     if not (a and b) then return end
     if firetouchinterest then
-        local ok = pcall(function()
-            firetouchinterest(a, b, 0)
-            firetouchinterest(a, b, 1)
-        end)
+        local ok = pcall(function() firetouchinterest(a, b, 0) firetouchinterest(a, b, 1) end)
         if ok then return end
+    end
+    if firetouchinterest_2 then
+        local ok2 = pcall(function() firetouchinterest_2(a, b, 0) firetouchinterest_2(a, b, 1) end)
+        if ok2 then return end
     end
     pcall(function() a.CFrame = b.CFrame end)
 end
 local function gr() local c = lp.Character return c and c:FindFirstChild("HumanoidRootPart"), c end
 local function gh() local c = lp.Character return c and c:FindFirstChildOfClass("Humanoid") end
-local function rootOf(p) local c = p and p.Character return c and c:FindFirstChild("HumanoidRootPart") end
 
 local function Tog(tab, title, desc, default, cb)
     tab:Toggle({Title = title, Desc = desc, Value = default, Default = default, Callback = cb})
@@ -175,27 +176,22 @@ end
 local function Sld(tab, title, mn, mx, def, cb)
     tab:Slider({Title = title, Step = 1, Value = {Min = mn, Max = mx, Default = def}, Callback = cb})
 end
-local function Dd(tab, title, vals, def, cb)
-    return tab:Dropdown({Title = title, Values = vals, Value = def, Callback = function(v)
-        if type(v) == "table" then v = v[1] end
-        cb(tostring(v))
-    end})
-end
 
 local S = {
     Farm = false, Speed = 50, Depth = 3, Dist = 300, AutoDie = true, Limit = 50, Pause = false,
-    Noclip = false, CoinESP = false, GunESP = false, AutoGun = false,
-    Aura = false, Range = 15,
-    AutoShoot = false, ShootRange = 200, Delay = 15, NeedLOS = true, AimPart = "Туловище", Predict = 8,
-    CamAim = false, Smooth = 25, Debug = false, AimMode = "Убийца (авто)", IgnoreWalls = false, FOVEnabled = false, FOVRadius = 250, AimHoldMode = false,
-    Walk = false, WSpd = 16, Jump = false, JPow = 50, Inf = false, Fly = false, FlySpd = 60, Pose = "Хоумлендер", FlyAnim = true, FlyFx = true,
-    AKick = false, Safe = false, AVoid = false, FlingK = false, Target = nil,
+    Noclip = false, Fly = false, FlySpd = 60, FlyAnim = true, FlyFx = true,
     CatBg = false,
 }
 local count, dying = 0, false
 
+local TabFarm = Window:Tab({Title = "Фарм", Icon = "pickaxe"})
+local TabCombat = Window:Tab({Title = "Бой", Icon = "crosshair"})
+local TabMove = Window:Tab({Title = "Движение", Icon = "move"})
+local TabVisuals = Window:Tab({Title = "Визуал", Icon = "eye"})
+local TabMisc = Window:Tab({Title = "Разное", Icon = "settings"})
+
 ----------------------------------------------------------------
--- СМЕНА ФОНА (кот)
+-- ФОН-КОТ
 ----------------------------------------------------------------
 local BG_DEFAULT = "rbxassetid://100780772234967"
 local BG_CAT = "rbxassetid://116530036450269"
@@ -212,14 +208,10 @@ local function findBgImage()
     end
     if not main then return nil end
     for _, v in ipairs(main:GetDescendants()) do
-        if v:IsA("ImageLabel") and (v.Image == BG_DEFAULT or v.Image == BG_CAT) then
-            bgImgCache = v return v
-        end
+        if v:IsA("ImageLabel") and (v.Image == BG_DEFAULT or v.Image == BG_CAT) then bgImgCache = v return v end
     end
     for _, v in ipairs(main:GetDescendants()) do
-        if v:IsA("Frame") and (v.BackgroundImage == BG_DEFAULT or v.BackgroundImage == BG_CAT) then
-            bgImgCache = v return v
-        end
+        if v:IsA("Frame") and (v.BackgroundImage == BG_DEFAULT or v.BackgroundImage == BG_CAT) then bgImgCache = v return v end
     end
     return nil
 end
@@ -241,60 +233,15 @@ local function applyBgImage()
         end
     end)
 end
-task.delay(2, function()
-    pcall(function()
-        local sg = guiParent():FindFirstChild("WindUI")
-        if not sg then return end
-        local main = sg:FindFirstChild("MainFrame")
-        if not main then
-            for _, v in ipairs(sg:GetDescendants()) do
-                if v:IsA("Frame") and v.AbsoluteSize.X > 400 and v.AbsoluteSize.Y > 300 then main = v break end
-            end
-        end
-        if main and not main:FindFirstChild("kemlopCatBtn") then
-            local btn = Instance.new("TextButton")
-            btn.Name = "kemlopCatBtn" btn.Size = UDim2.fromOffset(40, 40)
-            btn.Position = UDim2.new(1, -100, 0, 10)
-            btn.BackgroundColor3 = Color3.fromRGB(150, 90, 255)
-            btn.Text = "🐱" btn.TextSize = 22 btn.Font = Enum.Font.GothamBold
-            btn.TextColor3 = Color3.new(1, 1, 1) btn.ZIndex = 99 btn.Parent = main
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
-            btn.MouseButton1Click:Connect(function()
-                S.CatBg = not S.CatBg
-                applyBgImage()
-                notify("kemlopHud", S.CatBg and "Фон: кот 🐱" or "Фон: стандарт")
-            end)
-        end
-    end)
-end)
-
--- Картинка в углу
-task.delay(1.5, function()
-    pcall(function()
-        local sg = guiParent():FindFirstChild("WindUI")
-        if not sg then return end
-        local main = sg:FindFirstChild("MainFrame")
-        if not main then
-            for _, v in ipairs(sg:GetDescendants()) do
-                if v:IsA("Frame") and v.AbsoluteSize.X > 400 and v.AbsoluteSize.Y > 300 then main = v break end
-            end
-        end
-        if main and not main:FindFirstChild("CornerImage") then
-            local img = Instance.new("ImageLabel")
-            img.Name = "CornerImage" img.Image = "rbxassetid://96712761155733" img.BackgroundTransparency = 1
-            img.Size = UDim2.fromOffset(80, 80) img.Position = UDim2.new(1, -10, 1, -10)
-            img.AnchorPoint = Vector2.new(1, 1) img.ZIndex = 99 img.Parent = main
-        end
-    end)
+Tog(TabVisuals, "Фон-кот", "Сменить фон меню на кота 🐱", false, function(v)
+    S.CatBg = v
+    applyBgImage()
 end)
 
 ----------------------------------------------------------------
 -- РОЛИ
 ----------------------------------------------------------------
-local ROLE_COLORS = {Murderer = Color3.fromRGB(255, 60, 60), Sheriff = Color3.fromRGB(60, 130, 255), Innocent = Color3.fromRGB(80, 255, 120)}
-local ROLE_RU = {Murderer = "Убийца", Sheriff = "Шериф", Innocent = "Невиновный"}
 local roleCache, getDataRF = {}, nil
-
 loop(2, function()
     if not (getDataRF and getDataRF.Parent) then getDataRF = RepStorage:FindFirstChild("GetPlayerData", true) end
     if getDataRF and getDataRF:IsA("RemoteFunction") then
@@ -309,59 +256,13 @@ loop(2, function()
     end
 end)
 
-local function normRole(r)
-    r = tostring(r):lower()
-    if r:find("murder") then return "Murderer" end
-    if r:find("sheriff") or r:find("hero") then return "Sheriff" end
-    if r:find("innocent") then return "Innocent" end
-end
-local function scanTools(c)
-    if not c then return end
-    for _, t in ipairs(c:GetChildren()) do
-        if t:IsA("Tool") then
-            local n = t.Name:lower()
-            if n:find("knife") then return "Murderer" end
-            if n:find("gun") or n:find("revolver") then return "Sheriff" end
-        end
-    end
-end
-local function getRoleRaw(plr)
-    local cr = roleCache[plr.Name]
-    local n = cr and normRole(cr)
-    if n then return n end
-    local r = scanTools(plr:FindFirstChildOfClass("Backpack")) or scanTools(plr.Character)
-    if r then return r end
-    for _, a in ipairs({"Role", "role"}) do
-        local v = plr:GetAttribute(a) or (plr.Character and plr.Character:GetAttribute(a))
-        local nn = v and normRole(v)
-        if nn then return nn end
-    end
-    return "Innocent"
-end
-local roleMemo = {}
-local function getRole(plr)
-    local m = roleMemo[plr]
-    local now = tick()
-    if m and now - m[2] < 0.5 then return m[1] end
-    local r = getRoleRaw(plr)
-    roleMemo[plr] = table.pack(r, now)
-    return r
-end
-local function byRole(name) for _, p in ipairs(Players:GetPlayers()) do if p ~= lp and getRole(p) == name then return p end end end
-local function names()
-    local t = {}
-    for _, p in ipairs(Players:GetPlayers()) do if p ~= lp then t[#t + 1] = p.Name end end
-    return t
-end
-local function alive(plr) local h = plr and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") return h and h.Health > 0 end
-
 ----------------------------------------------------------------
--- МОНЕТЫ И ФАРМ
+-- ФАРМ МОНЕТ
 ----------------------------------------------------------------
 local coinList, lastScan = {}, 0
 local function isCoin(o) return o:IsA("BasePart") and o.Name:lower() == "coin_server" end
 loop(0.5, function()
-    if not (S.Farm or S.CoinESP) then return end
+    if not S.Farm then return end
     local l, found = {}, false
     for _, m in ipairs(workspace:GetChildren()) do
         local cc = m:FindFirstChild("CoinContainer")
@@ -379,21 +280,8 @@ loop(0.5, function()
     coinList = l
 end)
 local function isFresh(c) return c.Parent and c:FindFirstChildWhichIsA("TouchTransmitter") ~= nil end
-local function inLobby()
-    local r = gr() if not r then return true end
-    local lobby = workspace:FindFirstChild("Lobby")
-    if lobby and lobby:IsA("Model") then
-        local ok, cf, size = pcall(function() return lobby:GetBoundingBox() end)
-        if ok and cf then
-            local rel = cf:PointToObjectSpace(r.Position)
-            if math.abs(rel.X) <= size.X / 2 + 5 and math.abs(rel.Y) <= size.Y / 2 + 30 and math.abs(rel.Z) <= size.Z / 2 + 5 then return true end
-        end
-    end
-    return false
-end
 
 local visited, curCoin, holdBV, holdLV, holdAtt, below = {}, nil, nil, nil, nil, false
-
 local function clearHold()
     if holdBV then pcall(function() holdBV:Destroy() end) holdBV = nil end
     if holdLV then pcall(function() holdLV:Destroy() end) holdLV = nil end
@@ -418,7 +306,6 @@ local function makeHold(r)
         end)
     end
 end
-
 local function pick()
     local r = gr() if not r then return end
     local now, anyF = tick(), false
@@ -446,19 +333,21 @@ hb(function(dt)
     if dying then return end
     local r, h = gr(), gh()
     if not (r and h) or h.Health <= 0 then return end
-    if inLobby() then if holdBV or holdLV or below then stopHold() end return end
-    if S.Pause and getRole(lp) ~= "Murderer" then
-        local m = byRole("Murderer")
-        local mr = m and rootOf(m)
-        if mr and (mr.Position - r.Position).Magnitude < 25 then r.AssemblyLinearVelocity = Vector3.zero return end
+    local lobby = workspace:FindFirstChild("Lobby")
+    if lobby and lobby:IsA("Model") then
+        local ok, cf, size = pcall(function() return lobby:GetBoundingBox() end)
+        if ok and cf then
+            local rel = cf:PointToObjectSpace(r.Position)
+            if math.abs(rel.X) <= size.X / 2 + 5 and math.abs(rel.Y) <= size.Y / 2 + 30 and math.abs(rel.Z) <= size.Z / 2 + 5 then
+                if holdBV or holdLV or below then stopHold() end return
+            end
+        end
     end
     if not (curCoin and curCoin.Parent and isFresh(curCoin)) then
         curCoin = pick()
         if not curCoin then if holdBV or holdLV or below then stopHold() end return end
     end
-    if (not holdLV or holdLV.Parent ~= r) and (not holdBV or holdBV.Parent ~= r) then
-        makeHold(r)
-    end
+    if (not holdLV or holdLV.Parent ~= r) and (not holdBV or holdBV.Parent ~= r) then makeHold(r) end
     h.PlatformStand = true below = true
     local target = curCoin.Position - Vector3.new(0, S.Depth, 0)
     local delta = target - r.Position
@@ -475,4 +364,205 @@ hb(function(dt)
                 if S.AutoDie and count >= S.Limit then
                     dying = true
                     notify("kemlopHud", "Лимит " .. count .. " монет, умираю")
-                    stopHold() local hh = gh() if hh then hh.Health
+                    stopHold() local hh = gh() if hh then hh.Health = 0 end
+                end
+            end
+        end)
+    else
+        r.CFrame = CFrame.new(r.Position + delta.Unit * step)
+    end
+    r.AssemblyLinearVelocity = Vector3.zero r.AssemblyAngularVelocity = Vector3.zero
+end)
+
+Tog(TabFarm, "Авто-фарм", "Собирает монеты", false, function(v) S.Farm = v end)
+Sld(TabFarm, "Лимит монет", 10, 200, 50, function(v) S.Limit = v end)
+Tog(TabFarm, "Авто-смерть", "Умирает после лимита", true, function(v) S.AutoDie = v end)
+----------------------------------------------------------------
+-- NOCLIP И ПОЛЁТ
+----------------------------------------------------------------
+local FlingNC = false
+local ncParts, ncAt, ncChar = {}, 0, nil
+RS.Stepped:Connect(function()
+    if not (S.Noclip or S.Farm or FlingNC) then return end
+    local c = lp.Character
+    if not c then return end
+    if c ~= ncChar or tick() - ncAt > 1 then
+        ncChar, ncAt, ncParts = c, tick(), {}
+        for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then ncParts[#ncParts + 1] = p end end
+    end
+    for i = 1, #ncParts do pcall(function() ncParts[i].CanCollide = false end) end
+end)
+Tog(TabMove, "Noclip", "Проходить сквозь стены", false, function(v) S.Noclip = v end)
+
+local flyAP, flyAO, flyAtt, flyVelo, flyTrack, flyKind = nil, nil, nil, Vector3.zero, nil, nil
+local FLY_ANIMS = {stand = "507766666", hero = "616108001"}
+local function stopFlyAnim()
+    if flyTrack then pcall(function() flyTrack:Stop(0.2) end) end
+    flyTrack, flyKind = nil, nil
+end
+local function playFlyAnim(kind)
+    if flyKind == kind then return end
+    stopFlyAnim()
+    if not S.FlyAnim then return end
+    local h = gh()
+    if not h then return end
+    local an = h:FindFirstChildOfClass("Animator")
+    if not an then pcall(function() an = Instance.new("Animator") an.Parent = h end) end
+    if not an then return end
+    local a = Instance.new("Animation")
+    a.AnimationId = "rbxassetid://" .. FLY_ANIMS[kind]
+    local ok, tr = pcall(function() return an:LoadAnimation(a) end)
+    if ok and tr then
+        tr.Priority = Enum.AnimationPriority.Action4
+        tr.Looped = true
+        tr:Play(0.25)
+        flyTrack, flyKind = tr, kind
+    end
+end
+
+local fxCape, fxWeld, fxTrail, fxA0, fxA1, fxTopY, fxZ = nil, nil, nil, nil, nil, 0.8, 0.55
+local function clearFx()
+    for _, o in ipairs({fxCape, fxTrail, fxA0, fxA1}) do if o then pcall(function() o:Destroy() end) end end
+    fxCape, fxWeld, fxTrail, fxA0, fxA1 = nil, nil, nil, nil, nil
+end
+local function makeFx(c, r)
+    clearFx()
+    local torso = c:FindFirstChild("UpperTorso") or c:FindFirstChild("Torso")
+    if torso then
+        fxTopY = torso.Size.Y / 2
+        fxZ = torso.Size.Z / 2 + 0.05
+        fxCape = Instance.new("Part")
+        fxCape.Name = "kemlopCape" fxCape.Size = Vector3.new(2.2, 3.4, 0.08)
+        fxCape.Color = Color3.fromRGB(175, 20, 28) fxCape.Material = Enum.Material.Fabric
+        fxCape.CanCollide = false fxCape.CanQuery = false fxCape.CanTouch = false fxCape.Massless = true
+        fxCape.Parent = c
+        fxWeld = Instance.new("Weld") fxWeld.Part0 = torso fxWeld.Part1 = fxCape
+        fxWeld.C0 = CFrame.new(0, fxTopY, fxZ) * CFrame.new(0, -1.7, 0)
+        fxWeld.Parent = fxCape
+    end
+    fxA0 = Instance.new("Attachment") fxA0.Position = Vector3.new(0, 0.9, 0.6) fxA0.Parent = r
+    fxA1 = Instance.new("Attachment") fxA1.Position = Vector3.new(0, -0.9, 0.6) fxA1.Parent = r
+    fxTrail = Instance.new("Trail")
+    fxTrail.Attachment0 = fxA0 fxTrail.Attachment1 = fxA1 fxTrail.Lifetime = 0.5
+    fxTrail.Color = ColorSequence.new(Color3.fromRGB(255, 70, 60), Color3.fromRGB(255, 255, 255))
+    fxTrail.Transparency = NumberSequence.new(0.25, 1)
+    fxTrail.LightEmission = 0.6 fxTrail.Enabled = false fxTrail.Parent = r
+end
+local function updateFx(ratio)
+    if fxWeld and fxCape and fxCape.Parent then
+        local ang = -(6 + 62 * ratio) - math.sin(tick() * 14) * 5 * ratio
+        fxWeld.C0 = CFrame.new(0, fxTopY, fxZ) * CFrame.Angles(math.rad(ang), 0, 0) * CFrame.new(0, -1.7, 0)
+    end
+    if fxTrail then fxTrail.Enabled = ratio > 0.35 end
+end
+
+local function flyCleanup()
+    if flyAP then pcall(function() flyAP:Destroy() end) end
+    if flyAO then pcall(function() flyAO:Destroy() end) end
+    if flyAtt then pcall(function() flyAtt:Destroy() end) end
+    flyAP, flyAO, flyAtt, flyVelo = nil, nil, nil, Vector3.zero
+    stopFlyAnim()
+    clearFx()
+    local h = gh() if h and not S.Farm then h.PlatformStand = false end
+end
+
+RS.RenderStepped:Connect(function(dt)
+    pcall(function()
+        if (not S.Fly) or S.Farm then
+            if flyAP then flyCleanup() end
+            return
+        end
+        local r, c = gr() local h = gh()
+        if not (r and h and c) then return end
+        h.PlatformStand = true
+        if not (flyAP and flyAP.Parent) then
+            if flyAP then flyCleanup() h.PlatformStand = true end
+            flyAtt = Instance.new("Attachment") flyAtt.Name = "FlyAtt" flyAtt.Parent = r
+            flyAP = Instance.new("AlignPosition")
+            flyAP.Mode = Enum.PositionAlignmentMode.OneAttachment
+            flyAP.Attachment0 = flyAtt flyAP.MaxForce = 1e9 flyAP.Responsiveness = 30
+            flyAP.Position = r.Position flyAP.Parent = r
+            flyAO = Instance.new("AlignOrientation")
+            flyAO.Mode = Enum.OrientationAlignmentMode.OneAttachment
+            flyAO.Attachment0 = flyAtt flyAO.MaxTorque = 1e9 flyAO.Responsiveness = 25
+            flyAO.CFrame = r.CFrame flyAO.Parent = r
+        end
+        if S.FlyFx then
+            if not (fxTrail and fxTrail.Parent) then makeFx(c, r) end
+        elseif fxTrail or fxCape then
+            clearFx()
+        end
+        local camCF = cam.CFrame
+        local dir = Vector3.zero
+        local mv = h.MoveDirection
+        if mv.Magnitude > 0.05 then
+            local lv = camCF:VectorToObjectSpace(mv)
+            dir = camCF.LookVector * (-lv.Z) + camCF.RightVector * lv.X
+        end
+        if h.Jump or UIS:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0, 1, 0) end
+        if dir.Magnitude > 1 then dir = dir.Unit end
+        flyVelo = flyVelo:Lerp(dir * S.FlySpd, math.clamp(dt * 6, 0, 1))
+        local ratio = math.clamp(flyVelo.Magnitude / math.max(S.FlySpd, 1), 0, 1)
+        local tgt = r.Position + flyVelo * dt * 10
+        flyAP.Position = tgt
+        flyAO.CFrame = CFrame.new(r.Position, r.Position + camCF.LookVector)
+        updateFx(ratio)
+        if S.FlyAnim then playFlyAnim(ratio > 0.3 and "hero" or "stand")
+        elseif flyTrack then stopFlyAnim() end
+        r.AssemblyLinearVelocity = Vector3.zero
+    end)
+end)
+
+Tog(TabMove, "Полёт [Space/Ctrl]", "Позволяет летать", false, function(v) S.Fly = v end)
+Sld(TabMove, "Скорость полёта", 20, 200, 60, function(v) S.FlySpd = v end)
+Tog(TabMove, "Анимация полёта", "Включает анимацию", true, function(v) S.FlyAnim = v end)
+Tog(TabMove, "Эффекты (Плащ)", "Включает плащ и след", true, function(v) S.FlyFx = v end)
+
+----------------------------------------------------------------
+-- ОБХОД HYDRO HUB
+----------------------------------------------------------------
+local function bypassHydroHub()
+    getgenv().HydroHub = true
+    getgenv().Bypassed = true
+    getgenv().Executor = "Synapse X"
+    if hookfunction and identifyexecutor then
+        pcall(function()
+            hookfunction(identifyexecutor, function() return "Synapse X", "1.0.0" end)
+        end)
+    elseif identifyexecutor then
+        pcall(function()
+            identifyexecutor = function() return "Synapse X", "1.0.0" end
+        end)
+    end
+    notify("kemlopHud", "Обход Hydro Hub активирован")
+end
+
+local function loadHydroHub()
+    bypassHydroHub()
+    local hydroURL = "https://raw.githubusercontent.com/FRX397/Hydrohub/main/Hydro_hub"
+    local src = httpGet(hydroURL)
+    if not src then
+        notify("kemlopHud", "Ошибка: Не удалось скачать Hydro Hub (проверь ссылку)")
+        return
+    end
+    local ok, err = pcall(function() loadstring(src)() end)
+    if not ok then
+        notify("kemlopHud", "Ошибка запуска Hydro Hub: " .. tostring(err))
+    else
+        notify("kemlopHud", "Hydro Hub успешно загружен!")
+    end
+end
+
+TabMisc:Button({
+    Title = "Загрузить Hydro Hub",
+    Desc = "С обходом блокировки исполнителя",
+    Callback = function() loadHydroHub() end,
+})
+
+----------------------------------------------------------------
+-- ФИНАЛ
+----------------------------------------------------------------
+notify("kemlopHud", "Скрипт загружен (ПК + Мобилки)")
+kemlopLoading.set(0.9, "Почти готово...")
+task.delay(0.5, function() kemlopLoading.finish() end)
