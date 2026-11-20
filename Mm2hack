@@ -24,7 +24,7 @@ do
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 40) title.Position = UDim2.fromScale(0, 0.5)
-    title.BackgroundTransparency = 1 title.Text = "kemlopHud v13"
+    title.BackgroundTransparency = 1 title.Text = "kemlopHud v15"
     title.TextColor3 = Color3.new(1, 1, 1) title.Font = Enum.Font.GothamBold title.TextSize = 30 title.ZIndex = 11 title.Parent = bg
 
     local status = Instance.new("TextLabel")
@@ -73,8 +73,7 @@ do
 end
 local function notify(t, c) pcall(function() WindUI:Notify({Title = t, Content = c, Duration = 4}) end) end
 
-local Window = WindUI:CreateWindow({Title = "kemlopHud", Icon = "layout-dashboard", Author = "v13", Folder = "kemlopHud", Size = UDim2.fromOffset(600, 480), Theme = "Dark", Transparent = true, Background = "rbxassetid://100780772234967", BackgroundImageTransparency = 0.6})
-pcall(function() Window:EditOpenButton({Title = "kemlopHud", Icon = "app-window", Color = ColorSequence.new(Color3.fromRGB(60, 190, 255), Color3.fromRGB(150, 90, 255))}) end)
+local Window = WindUI:CreateWindow({Title = "kemlopHud", Icon = "layout-dashboard", Author = "v15", Folder = "kemlopHud", Size = UDim2.fromOffset(600, 480), Theme = "Dark", Transparent = true, Background = "rbxassetid://100780772234967", BackgroundImageTransparency = 0.6})
 
 -- ================= ХЕЛПЕРЫ =================
 local function loop(d, f) task.spawn(function() while true do task.wait(d) pcall(f) end end) end
@@ -86,10 +85,62 @@ local function gh() local c = lp.Character return c and c:FindFirstChildOfClass(
 local S = {
     Farm = false, FarmSpeed = 150, ZOffset = 4, Limit = 50, AutoDie = true,
     Noclip = false, Fly = false, FlySpd = 60,
-    ESP_Coins = false, ESP_Roles = false, CatBg = false
+    ESP_Coins = false, ESP_Roles = false, CatBg = false,
+    AutoShoot = false, AimBot = false
 }
 local count = 0
 
+-- ================= МАЛЕНЬКИЕ КНОПКИ (WINDUI STYLE) =================
+local btnGui = Instance.new("ScreenGui")
+btnGui.Name = "kemlopFloatingBtns" btnGui.ResetOnSpawn = false btnGui.DisplayOrder = 100
+if syn and syn.protect_gui then syn.protect_gui(btnGui) end
+btnGui.Parent = guiParent()
+
+local function createFloatingButton(text, variable, defaultPos)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.fromOffset(50, 50)
+    btn.Position = defaultPos
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    btn.BackgroundTransparency = 0.2
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 11
+    btn.AutoButtonColor = false
+    btn.Active = true
+    btn.Draggable = true -- Можно перетаскивать
+    btn.Parent = btnGui
+    
+    local corner = Instance.new("UICorner", btn)
+    corner.CornerRadius = UDim.new(0, 12)
+    
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = Color3.fromRGB(50, 50, 60)
+    stroke.Thickness = 1.5
+    
+    -- Логика переключения
+    btn.MouseButton1Click:Connect(function()
+        S[variable] = not S[variable]
+        if S[variable] then
+            btn.BackgroundColor3 = Color3.fromRGB(80, 150, 255) -- Синий (вкл)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            stroke.Color = Color3.fromRGB(120, 180, 255)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30) -- Темный (выкл)
+            btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+            stroke.Color = Color3.fromRGB(50, 50, 60)
+        end
+    end)
+    return btn
+end
+
+createFloatingButton("FARM", "Farm", UDim2.new(0, 15, 0, 150))
+createFloatingButton("FLY", "Fly", UDim2.new(0, 15, 0, 210))
+createFloatingButton("NOCLIP", "Noclip", UDim2.new(0, 15, 0, 270))
+createFloatingButton("SHOOT", "AutoShoot", UDim2.new(0, 15, 0, 330))
+createFloatingButton("AIM", "AimBot", UDim2.new(0, 15, 0, 390))
+
+-- ================= ВКЛАДКИ МЕНЮ =================
 local TabFarm = Window:Tab({Title = "Фарм", Icon = "pickaxe"})
 local TabCombat = Window:Tab({Title = "Бой", Icon = "crosshair"})
 local TabVisuals = Window:Tab({Title = "Визуал", Icon = "eye"})
@@ -121,7 +172,7 @@ TabVisuals:Toggle({Title = "Фон-кот 🐱", Desc = "Меняет фон м�
     end)
 end})
 
--- ================= РОЛИ =================
+-- ================= РОЛИ И ESP =================
 local roles, RF = {}, nil
 loop(2, function()
     if not RF or not RF.Parent then RF = RepStorage:FindFirstChild("GetPlayerData", true) end
@@ -145,11 +196,9 @@ local function getRole(p)
     return "Innocent"
 end
 
--- ================= ESP =================
 local espFolder = Instance.new("Folder", guiParent())
 espFolder.Name = "kemlopESP"
 local highlights = {}
-
 local function setHighlight(obj, color, name)
     if not obj then return end
     if not highlights[obj] then
@@ -160,7 +209,6 @@ local function setHighlight(obj, color, name)
     end
     highlights[obj].Adornee = obj
 end
-
 loop(0.5, function()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= lp and p.Character then
@@ -177,11 +225,13 @@ loop(0.5, function()
         if not obj or not obj.Parent then h:Destroy() highlights[obj] = nil end
     end
 end)
+TabVisuals:Toggle({Title = "ESP Ролей", Value = false, Callback = function(v) S.ESP_Roles = v end})
+TabVisuals:Toggle({Title = "ESP Монет", Value = false, Callback = function(v) S.ESP_Coins = v end})
 
--- ================= ФАРМ (ПЛАВНЫЙ ПОЛЕТ С НАКЛОНОМ) =================
+-- ================= ФАРМ (НЫРОК) =================
 local coins = {}
 loop(1, function()
-    if not S.Farm then return end
+    if not S.Farm and not S.ESP_Coins then return end
     coins = {}
     for _, v in ipairs(workspace:GetDescendants()) do
         if v:IsA("BasePart") and v.Name:lower() == "coin_server" then
@@ -191,10 +241,8 @@ loop(1, function()
     end
 end)
 
--- Останавливаем физику, чтобы полет был плавным и не дергался
 local holdBV
 local function stopPhysics()
-    local r = gr()
     if holdBV then holdBV:Destroy() holdBV = nil end
     local h = gh()
     if h then h.PlatformStand = false end
@@ -217,7 +265,6 @@ hb(function(dt)
     local r, h = gr(), gh()
     if not r or not h or h.Health <= 0 then return end
     
-    -- Ищем ближайшую монету
     local best, dist = nil, math.huge
     for _, c in ipairs(coins) do
         if c.Parent then
@@ -227,36 +274,28 @@ hb(function(dt)
     end
     
     if best then
-        h.PlatformStand = true -- Отключаем гравитацию
-        startPhysics() -- Держим на месте, чтобы не скользил
+        h.PlatformStand = true
+        startPhysics()
         
-        -- Цель: позиция монеты + смещение по Z на 4 стада
         local targetPos = best.Position + Vector3.new(0, 0, S.ZOffset)
         local moveDir = (targetPos - r.Position).Unit
-        local speed = S.FarmSpeed
-        local step = math.min(speed * dt, dist)
-        
-        -- Вычисляем новую позицию
+        local step = math.min(S.FarmSpeed * dt, dist)
         local newPos = r.Position + moveDir * step
         
-        -- Наклон как на фото (Супермен): смотрим на цель и поворачиваем по X на -90 градусов
+        -- Наклон (Супермен)
         local baseLook = CFrame.lookAt(newPos, targetPos)
         local diveCF = baseLook * CFrame.Angles(math.rad(-90), 0, 0)
-        
-        -- Плавно интерполируем поворот (чтобы не было резких рывков)
         local smoothRot = r.CFrame.Rotation:Lerp(diveCF.Rotation, math.clamp(dt * 10, 0, 1))
         
-        -- Применяем позицию и поворот
         r.CFrame = CFrame.new(newPos) * smoothRot
         
-        -- Если долетели до цели (в пределах 5 стадов), собираем
         if dist <= 5 then
             touchPart(r, best)
             count += 1
             if count >= S.Limit and S.AutoDie then
                 h.Health = 0
                 count = 0
-                notify("kemlopHud", "Лимит монет собран, умираю")
+                notify("kemlopHud", "Лимит собран")
                 stopPhysics()
             end
         end
@@ -266,10 +305,9 @@ hb(function(dt)
 end)
 
 TabFarm:Toggle({Title = "Авто-фарм (Полет)", Value = false, Callback = function(v) S.Farm = v if not v then stopPhysics() end end})
-TabFarm:Slider({Title = "Скорость полета", Value = {Min = 50, Max = 300, Default = 150}, Callback = function(v) S.FarmSpeed = v end})
-TabFarm:Slider({Title = "Смещение Z", Value = {Min = 0, Max = 10, Default = 4}, Callback = function(v) S.ZOffset = v end})
-TabFarm:Slider({Title = "Лимит монет", Value = {Min = 10, Max = 500, Default = 50}, Callback = function(v) S.Limit = v end})
-TabFarm:Toggle({Title = "Умирать после лимита", Value = true, Callback = function(v) S.AutoDie = v end})
+TabFarm:Slider({Title = "Скорость", Value = {Min = 50, Max = 300, Default = 150}, Callback = function(v) S.FarmSpeed = v end})
+TabFarm:Slider({Title = "Отступ Z", Value = {Min = 0, Max = 10, Default = 4}, Callback = function(v) S.ZOffset = v end})
+TabFarm:Slider({Title = "Лимит", Value = {Min = 10, Max = 500, Default = 50}, Callback = function(v) S.Limit = v end})
 
 -- ================= NOCLIP И FLY =================
 RS.Stepped:Connect(function()
@@ -281,7 +319,10 @@ TabMove:Toggle({Title = "Noclip", Value = false, Callback = function(v) S.Noclip
 
 local flyAP, flyAO, flyAtt, flyVelo = nil, nil, nil, Vector3.zero
 RS.RenderStepped:Connect(function(dt)
-    if not S.Fly then if flyAP then flyAP:Destroy() flyAO:Destroy() flyAtt:Destroy() flyAP = nil local h = gh() if h then h.PlatformStand = false end end return end
+    if not S.Fly then 
+        if flyAP then flyAP:Destroy() flyAO:Destroy() flyAtt:Destroy() flyAP = nil local h = gh() if h and not S.Farm then h.PlatformStand = false end end 
+        return 
+    end
     local r, h = gr(), gh()
     if not r or not h then return end
     h.PlatformStand = true
@@ -309,27 +350,78 @@ RS.RenderStepped:Connect(function(dt)
     flyAP.Position = r.Position + flyVelo * dt * 10
     flyAO.CFrame = CFrame.new(r.Position, r.Position + cam.CFrame.LookVector)
 end)
-TabMove:Toggle({Title = "Полёт [Space/Ctrl]", Value = false, Callback = function(v) S.Fly = v end})
+TabMove:Toggle({Title = "Полёт", Value = false, Callback = function(v) S.Fly = v end})
 TabMove:Slider({Title = "Скорость полёта", Value = {Min = 20, Max = 200, Default = 60}, Callback = function(v) S.FlySpd = v end})
+
+-- ================= БОЙ (АИМ И СТРЕЛЬБА) =================
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local camera = workspace.CurrentCamera
+
+local function getTarget()
+    local closest = nil
+    local shortest = S.AimRange or 300
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                local pos, onScreen = camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+                if onScreen then
+                    local dist = (p.Character.HumanoidRootPart.Position - camera.CFrame.Position).Magnitude
+                    if dist < shortest then
+                        shortest = dist
+                        closest = p.Character.HumanoidRootPart
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+RS.RenderStepped:Connect(function()
+    if S.AimBot then
+        local target = getTarget()
+        if target then
+            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, target.Position)
+        end
+    end
+end)
+
+local mt = getrawmetatable and getrawmetatable(game) or nil
+if mt then
+    local old = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure and newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if S.AutoShoot and (method == "Fire" or method == "InvokeServer") and self.Name == "Gun" then
+            return
+        end
+        return old(self, ...)
+    end) or old
+    setreadonly(mt, true)
+end
+
+TabCombat:Toggle({Title = "Аимбот", Value = false, Callback = function(v) S.AimBot = v end})
+TabCombat:Toggle({Title = "Автострельба (безопасно)", Value = false, Callback = function(v) S.AutoShoot = v end})
+TabCombat:Slider({Title = "Дистанция Аима", Value = {Min = 50, Max = 500, Default = 200}, Callback = function(v) S.AimRange = v end})
 
 -- ================= ОБХОД HYDRO HUB =================
 TabMisc:Button({
     Title = "Загрузить Hydro Hub",
-    Desc = "С обходом блокировки",
     Callback = function()
         getgenv().HydroHub = true
-        getgenv().Bypassed = true
         if hookfunction and identifyexecutor then pcall(function() hookfunction(identifyexecutor, function() return "Synapse X", "1.0.0" end) end) end
         local src = httpGet("https://raw.githubusercontent.com/FRX397/Hydrohub/main/Hydro_hub")
         if src then
             local ok, err = pcall(function() loadstring(src)() end)
-            if ok then notify("kemlopHud", "Hydro Hub загружен!") else notify("Ошибка Hydro Hub", tostring(err)) end
+            if ok then notify("kemlopHud", "Hydro Hub загружен!") else notify("Ошибка", tostring(err)) end
         else
-            notify("Ошибка", "Не удалось скачать Hydro Hub")
+            notify("Ошибка", "Не удалось скачать")
         end
     end
 })
 
 -- ================= ФИНАЛ =================
-notify("kemlopHud", "Скрипт загружен (Dive Mode)!")
+notify("kemlopHud", "Скрипт загружен (WindUI Style Buttons)!")
 kemlopLoading.finish()
