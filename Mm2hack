@@ -24,7 +24,7 @@ do
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 40) title.Position = UDim2.fromScale(0, 0.5)
-    title.BackgroundTransparency = 1 title.Text = "kemlopHud v15"
+    title.BackgroundTransparency = 1 title.Text = "kemlopHud v18"
     title.TextColor3 = Color3.new(1, 1, 1) title.Font = Enum.Font.GothamBold title.TextSize = 30 title.ZIndex = 11 title.Parent = bg
 
     local status = Instance.new("TextLabel")
@@ -73,7 +73,8 @@ do
 end
 local function notify(t, c) pcall(function() WindUI:Notify({Title = t, Content = c, Duration = 4}) end) end
 
-local Window = WindUI:CreateWindow({Title = "kemlopHud", Icon = "layout-dashboard", Author = "v15", Folder = "kemlopHud", Size = UDim2.fromOffset(600, 480), Theme = "Dark", Transparent = true, Background = "rbxassetid://100780772234967", BackgroundImageTransparency = 0.6})
+-- Окно под мобилки
+local Window = WindUI:CreateWindow({Title = "kemlopHud", Icon = "layout-dashboard", Author = "v18", Folder = "kemlopHud", Size = UDim2.fromOffset(450, 380), Theme = "Dark", Transparent = true, Background = "rbxassetid://100780772234967", BackgroundImageTransparency = 0.6})
 
 -- ================= ХЕЛПЕРЫ =================
 local function loop(d, f) task.spawn(function() while true do task.wait(d) pcall(f) end end) end
@@ -86,114 +87,74 @@ local S = {
     Farm = false, FarmSpeed = 150, ZOffset = 4, Limit = 50, AutoDie = true,
     Noclip = false, Fly = false, FlySpd = 60,
     ESP_Coins = false, ESP_Roles = false, CatBg = false,
-    AutoShoot = false, AimBot = false
+    AutoShoot = false, AimBot = false, AimRange = 300, AimTarget = "Все"
 }
 local count = 0
 
--- ================= МАЛЕНЬКИЕ КНОПКИ (WINDUI STYLE) =================
+-- ================= МАЛЕНЬКИЕ КНОПКИ =================
 local btnGui = Instance.new("ScreenGui")
 btnGui.Name = "kemlopFloatingBtns" btnGui.ResetOnSpawn = false btnGui.DisplayOrder = 100
 if syn and syn.protect_gui then syn.protect_gui(btnGui) end
 btnGui.Parent = guiParent()
 
-local function createFloatingButton(text, variable, defaultPos)
+local FloatingButtons = {}
+local function createFloatingButton(id, text, variable, defaultPos)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.fromOffset(50, 50)
-    btn.Position = defaultPos
-    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    btn.BackgroundTransparency = 0.2
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(150, 150, 150)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 11
-    btn.AutoButtonColor = false
-    btn.Active = true
-    btn.Draggable = true -- Можно перетаскивать
-    btn.Parent = btnGui
-    
-    local corner = Instance.new("UICorner", btn)
-    corner.CornerRadius = UDim.new(0, 12)
-    
+    btn.Name = id btn.Size = UDim2.fromOffset(50, 50) btn.Position = defaultPos
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30) btn.BackgroundTransparency = 0.2
+    btn.Text = text btn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    btn.Font = Enum.Font.GothamBold btn.TextSize = 11 btn.AutoButtonColor = false
+    btn.Active = true btn.Draggable = true btn.Parent = btnGui
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
     local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Color3.fromRGB(50, 50, 60)
-    stroke.Thickness = 1.5
-    
-    -- Логика переключения
+    stroke.Color = Color3.fromRGB(50, 50, 60) stroke.Thickness = 1.5
     btn.MouseButton1Click:Connect(function()
         S[variable] = not S[variable]
         if S[variable] then
-            btn.BackgroundColor3 = Color3.fromRGB(80, 150, 255) -- Синий (вкл)
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            stroke.Color = Color3.fromRGB(120, 180, 255)
+            btn.BackgroundColor3 = Color3.fromRGB(80, 150, 255) btn.TextColor3 = Color3.fromRGB(255, 255, 255) stroke.Color = Color3.fromRGB(120, 180, 255)
         else
-            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30) -- Темный (выкл)
-            btn.TextColor3 = Color3.fromRGB(150, 150, 150)
-            stroke.Color = Color3.fromRGB(50, 50, 60)
+            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30) btn.TextColor3 = Color3.fromRGB(150, 150, 150) stroke.Color = Color3.fromRGB(50, 50, 60)
         end
     end)
-    return btn
+    FloatingButtons[id] = btn
 end
 
-createFloatingButton("FARM", "Farm", UDim2.new(0, 15, 0, 150))
-createFloatingButton("FLY", "Fly", UDim2.new(0, 15, 0, 210))
-createFloatingButton("NOCLIP", "Noclip", UDim2.new(0, 15, 0, 270))
-createFloatingButton("SHOOT", "AutoShoot", UDim2.new(0, 15, 0, 330))
-createFloatingButton("AIM", "AimBot", UDim2.new(0, 15, 0, 390))
+createFloatingButton("FarmBtn", "FARM", "Farm", UDim2.new(0, 15, 0, 150))
+createFloatingButton("FlyBtn", "FLY", "Fly", UDim2.new(0, 15, 0, 210))
+createFloatingButton("NoclipBtn", "NOCLIP", "Noclip", UDim2.new(0, 15, 0, 270))
+createFloatingButton("ShootBtn", "SHOOT", "AutoShoot", UDim2.new(0, 15, 0, 330))
+createFloatingButton("AimBtn", "AIM", "AimBot", UDim2.new(0, 15, 0, 390))
 
--- ================= ВКЛАДКИ МЕНЮ =================
+-- ================= ВКЛАДКИ =================
 local TabFarm = Window:Tab({Title = "Фарм", Icon = "pickaxe"})
 local TabCombat = Window:Tab({Title = "Бой", Icon = "crosshair"})
 local TabVisuals = Window:Tab({Title = "Визуал", Icon = "eye"})
 local TabMove = Window:Tab({Title = "Движение", Icon = "move"})
+local TabSkins = Window:Tab({Title = "Скины", Icon = "shirt"})
+local TabAnims = Window:Tab({Title = "Анимации", Icon = "person-standing"})
 local TabMisc = Window:Tab({Title = "Разное", Icon = "settings"})
-
--- ================= СМЕНА ФОНА =================
-local BG_DEF, BG_CAT = "rbxassetid://100780772234967", "rbxassetid://116530036450269"
-local bgCache = nil
-local function findBg()
-    if bgCache and bgCache.Parent then return bgCache end
-    local sg = guiParent():FindFirstChild("WindUI")
-    if not sg then return nil end
-    local main = sg:FindFirstChild("MainFrame") or sg
-    for _, v in ipairs(main:GetDescendants()) do
-        if v:IsA("ImageLabel") and (v.Image == BG_DEF or v.Image == BG_CAT) then bgCache = v return v end
-        if v:IsA("Frame") and (v.BackgroundImage == BG_DEF or v.BackgroundImage == BG_CAT) then bgCache = v return v end
-    end
-end
-TabVisuals:Toggle({Title = "Фон-кот 🐱", Desc = "Меняет фон меню", Value = false, Callback = function(v)
-    S.CatBg = v
-    task.spawn(function()
-        local img = findBg()
-        if not img then task.wait(2) img = findBg() end
-        if img then
-            local id = v and BG_CAT or BG_DEF
-            if img:IsA("Frame") then img.BackgroundImage = id else img.Image = id end
-        end
-    end)
-end})
+local TabSettings = Window:Tab({Title = "Настройки HUD", Icon = "layout"})
 
 -- ================= РОЛИ И ESP =================
-local roles, RF = {}, nil
-loop(2, function()
-    if not RF or not RF.Parent then RF = RepStorage:FindFirstChild("GetPlayerData", true) end
-    if RF and RF:IsA("RemoteFunction") then
-        local ok, data = pcall(function() return RF:InvokeServer() end)
-        if ok and type(data) == "table" then
-            local c = {}
-            for n, i in pairs(data) do if type(i) == "table" and type(i.Role) == "string" then c[n] = i.Role end end
-            roles = c
-        end
-    end
-end)
 local function getRole(p)
-    local r = roles[p.Name]
-    if r then
-        r = r:lower()
-        if r:find("murder") then return "Murderer" end
-        if r:find("sheriff") or r:find("hero") then return "Sheriff" end
-        return "Innocent"
+    local roleAttr = p:GetAttribute("Role") or p:GetAttribute("role")
+    if roleAttr then
+        roleAttr = tostring(roleAttr):lower()
+        if roleAttr:find("murder") then return "Murderer" end
+        if roleAttr:find("sheriff") or roleAttr:find("hero") then return "Sheriff" end
     end
-    return "Innocent"
+    local function checkTools(container)
+        if not container then return nil end
+        for _, tool in ipairs(container:GetChildren()) do
+            if tool:IsA("Tool") then
+                local n = tool.Name:lower()
+                if n:find("knife") then return "Murderer" end
+                if n:find("gun") or n:find("revolver") then return "Sheriff" end
+            end
+        end
+        return nil
+    end
+    return checkTools(p.Character) or checkTools(p:FindFirstChildOfClass("Backpack")) or "Innocent"
 end
 
 local espFolder = Instance.new("Folder", guiParent())
@@ -228,7 +189,7 @@ end)
 TabVisuals:Toggle({Title = "ESP Ролей", Value = false, Callback = function(v) S.ESP_Roles = v end})
 TabVisuals:Toggle({Title = "ESP Монет", Value = false, Callback = function(v) S.ESP_Coins = v end})
 
--- ================= ФАРМ (НЫРОК) =================
+-- ================= ФАРМ =================
 local coins = {}
 loop(1, function()
     if not S.Farm and not S.ESP_Coins then return end
@@ -258,13 +219,9 @@ local function startPhysics()
 end
 
 hb(function(dt)
-    if not S.Farm then 
-        if holdBV then stopPhysics() end
-        return 
-    end
+    if not S.Farm then if holdBV then stopPhysics() end return end
     local r, h = gr(), gh()
     if not r or not h or h.Health <= 0 then return end
-    
     local best, dist = nil, math.huge
     for _, c in ipairs(coins) do
         if c.Parent then
@@ -272,36 +229,23 @@ hb(function(dt)
             if d < dist then best, dist = c, d end
         end
     end
-    
     if best then
-        h.PlatformStand = true
-        startPhysics()
-        
+        h.PlatformStand = true startPhysics()
         local targetPos = best.Position + Vector3.new(0, 0, S.ZOffset)
         local moveDir = (targetPos - r.Position).Unit
         local step = math.min(S.FarmSpeed * dt, dist)
         local newPos = r.Position + moveDir * step
-        
-        -- Наклон (Супермен)
         local baseLook = CFrame.lookAt(newPos, targetPos)
         local diveCF = baseLook * CFrame.Angles(math.rad(-90), 0, 0)
         local smoothRot = r.CFrame.Rotation:Lerp(diveCF.Rotation, math.clamp(dt * 10, 0, 1))
-        
         r.CFrame = CFrame.new(newPos) * smoothRot
-        
         if dist <= 5 then
-            touchPart(r, best)
-            count += 1
+            touchPart(r, best) count += 1
             if count >= S.Limit and S.AutoDie then
-                h.Health = 0
-                count = 0
-                notify("kemlopHud", "Лимит собран")
-                stopPhysics()
+                h.Health = 0 count = 0 stopPhysics()
             end
         end
-    else
-        stopPhysics()
-    end
+    else stopPhysics() end
 end)
 
 TabFarm:Toggle({Title = "Авто-фарм (Полет)", Value = false, Callback = function(v) S.Farm = v if not v then stopPhysics() end end})
@@ -319,23 +263,16 @@ TabMove:Toggle({Title = "Noclip", Value = false, Callback = function(v) S.Noclip
 
 local flyAP, flyAO, flyAtt, flyVelo = nil, nil, nil, Vector3.zero
 RS.RenderStepped:Connect(function(dt)
-    if not S.Fly then 
-        if flyAP then flyAP:Destroy() flyAO:Destroy() flyAtt:Destroy() flyAP = nil local h = gh() if h and not S.Farm then h.PlatformStand = false end end 
-        return 
-    end
+    if not S.Fly then if flyAP then flyAP:Destroy() flyAO:Destroy() flyAtt:Destroy() flyAP = nil local h = gh() if h and not S.Farm then h.PlatformStand = false end end return end
     local r, h = gr(), gh()
     if not r or not h then return end
     h.PlatformStand = true
     if not flyAP then
         flyAtt = Instance.new("Attachment", r)
         flyAP = Instance.new("AlignPosition", r)
-        flyAP.Mode = Enum.PositionAlignmentMode.OneAttachment
-        flyAP.Attachment0 = flyAtt flyAP.MaxForce = 1e9 flyAP.Responsiveness = 30
-        flyAP.Position = r.Position
+        flyAP.Mode = Enum.PositionAlignmentMode.OneAttachment flyAP.Attachment0 = flyAtt flyAP.MaxForce = 1e9 flyAP.Responsiveness = 30 flyAP.Position = r.Position
         flyAO = Instance.new("AlignOrientation", r)
-        flyAO.Mode = Enum.OrientationAlignmentMode.OneAttachment
-        flyAO.Attachment0 = flyAtt flyAO.MaxTorque = 1e9 flyAO.Responsiveness = 25
-        flyAO.CFrame = r.CFrame
+        flyAO.Mode = Enum.OrientationAlignmentMode.OneAttachment flyAO.Attachment0 = flyAtt flyAO.MaxTorque = 1e9 flyAO.Responsiveness = 25 flyAO.CFrame = r.CFrame
     end
     local dir = Vector3.zero
     local mv = h.MoveDirection
@@ -350,27 +287,28 @@ RS.RenderStepped:Connect(function(dt)
     flyAP.Position = r.Position + flyVelo * dt * 10
     flyAO.CFrame = CFrame.new(r.Position, r.Position + cam.CFrame.LookVector)
 end)
-TabMove:Toggle({Title = "Полёт", Value = false, Callback = function(v) S.Fly = v end})
+TabMove:Toggle({Title = "Полёт [Space/Ctrl]", Value = false, Callback = function(v) S.Fly = v end})
 TabMove:Slider({Title = "Скорость полёта", Value = {Min = 20, Max = 200, Default = 60}, Callback = function(v) S.FlySpd = v end})
 
--- ================= БОЙ (АИМ И СТРЕЛЬБА) =================
-local player = Players.LocalPlayer
-local mouse = player:GetMouse()
+-- ================= БОЙ =================
 local camera = workspace.CurrentCamera
+TabCombat:Dropdown({Title = "Кого аимить?", Values = {"Все", "Убийца", "Шериф"}, Value = "Все", Callback = function(v) S.AimTarget = v end})
 
 local function getTarget()
-    local closest = nil
-    local shortest = S.AimRange or 300
+    local closest = nil local shortest = S.AimRange or 300
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
             if hum and hum.Health > 0 then
-                local pos, onScreen = camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
-                if onScreen then
-                    local dist = (p.Character.HumanoidRootPart.Position - camera.CFrame.Position).Magnitude
-                    if dist < shortest then
-                        shortest = dist
-                        closest = p.Character.HumanoidRootPart
+                local role = getRole(p) local valid = false
+                if S.AimTarget == "Все" then valid = true
+                elseif S.AimTarget == "Убийца" and role == "Murderer" then valid = true
+                elseif S.AimTarget == "Шериф" and role == "Sheriff" then valid = true end
+                if valid then
+                    local _, onScreen = camera:WorldToViewportPoint(p.Character.HumanoidRootPart.Position)
+                    if onScreen then
+                        local dist = (p.Character.HumanoidRootPart.Position - camera.CFrame.Position).Magnitude
+                        if dist < shortest then shortest = dist closest = p.Character.HumanoidRootPart end
                     end
                 end
             end
@@ -382,46 +320,102 @@ end
 RS.RenderStepped:Connect(function()
     if S.AimBot then
         local target = getTarget()
-        if target then
-            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, target.Position)
-        end
+        if target then camera.CFrame = CFrame.lookAt(camera.CFrame.Position, target.Position) end
     end
 end)
 
-local mt = getrawmetatable and getrawmetatable(game) or nil
-if mt then
-    local old = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = newcclosure and newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        if S.AutoShoot and (method == "Fire" or method == "InvokeServer") and self.Name == "Gun" then
-            return
-        end
-        return old(self, ...)
-    end) or old
-    setreadonly(mt, true)
-end
+pcall(function()
+    if getrawmetatable and setreadonly and getnamecallmethod then
+        local mt = getrawmetatable(game) local old = mt.__namecall setreadonly(mt, false)
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            if S.AutoShoot and (method == "Fire" or method == "InvokeServer") and (self.Name == "Gun" or self.Name == "Revolver") then return end
+            return old(self, ...)
+        end)
+        setreadonly(mt, true)
+    end
+end)
 
 TabCombat:Toggle({Title = "Аимбот", Value = false, Callback = function(v) S.AimBot = v end})
-TabCombat:Toggle({Title = "Автострельба (безопасно)", Value = false, Callback = function(v) S.AutoShoot = v end})
-TabCombat:Slider({Title = "Дистанция Аима", Value = {Min = 50, Max = 500, Default = 200}, Callback = function(v) S.AimRange = v end})
+TabCombat:Toggle({Title = "Автострельба", Value = false, Callback = function(v) S.AutoShoot = v end})
+TabCombat:Slider({Title = "Дистанция Аима", Value = {Min = 50, Max = 500, Default = 300}, Callback = function(v) S.AimRange = v end})
 
--- ================= ОБХОД HYDRO HUB =================
-TabMisc:Button({
-    Title = "Загрузить Hydro Hub",
-    Callback = function()
-        getgenv().HydroHub = true
-        if hookfunction and identifyexecutor then pcall(function() hookfunction(identifyexecutor, function() return "Synapse X", "1.0.0" end) end) end
-        local src = httpGet("https://raw.githubusercontent.com/FRX397/Hydrohub/main/Hydro_hub")
-        if src then
-            local ok, err = pcall(function() loadstring(src)() end)
-            if ok then notify("kemlopHud", "Hydro Hub загружен!") else notify("Ошибка", tostring(err)) end
-        else
-            notify("Ошибка", "Не удалось скачать")
+-- ================= СКИНЫ (ПО НИКУ/ID) =================
+local skinInput = TabSkins:Input({Title = "Введите ник или ID", Value = "", Placeholder = "Username или 1234567..."})
+
+local function applySkinById(userId)
+    local ok, desc = pcall(function() return Players:GetHumanoidDescriptionFromUserId(userId) end)
+    if ok and desc then
+        local char = lp.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            pcall(function() hum:ApplyDescription(desc) notify("kemlopHud", "Скин применен!") end)
         end
+    else
+        notify("Ошибка", "Неверный ID или игрок не найден")
+    end
+end
+
+TabSkins:Button({
+    Title = "Применить скин",
+    Callback = function()
+        local text = skinInput.Value
+        if text == "" then return notify("Ошибка", "Введите ник!") end
+        local id = tonumber(text)
+        if not id then
+            local ok, fetchedId = pcall(function() return Players:GetUserIdFromNameAsync(text) end)
+            if ok and fetchedId then id = fetchedId else return notify("Ошибка", "Игрок не найден") end
+        end
+        applySkinById(id)
     end
 })
 
--- ================= ФИНАЛ =================
-notify("kemlopHud", "Скрипт загружен (WindUI Style Buttons)!")
-kemlopLoading.finish()
+TabSkins:Button({
+    Title = "Скопировать скин Убийцы",
+    Callback = function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and getRole(p) == "Murderer" then applySkinById(p.UserId) return end
+        end
+        notify("Ошибка", "Убийца не найден")
+    end
+})
+
+TabSkins:Button({
+    Title = "Скопировать скин Шерифа",
+    Callback = function()
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= lp and getRole(p) == "Sheriff" then applySkinById(p.UserId) return end
+        end
+        notify("Ошибка", "Шериф не найден")
+    end
+})
+
+-- ================= АНИМАЦИИ (С КАРТИНКАМИ) =================
+local ANIM_PACKS = {
+    {Name = "Default", Id = 507766666},
+    {Name = "Ninja", Id = 656118852},
+    {Name = "Zombie", Id = 616164248},
+    {Name = "Cartoony", Id = 7426402881},
+    {Name = "Superhero", Id = 616108001},
+    {Name = "Mage", Id = 7078454060},
+    {Name = "Levitation", Id = 616118173},
+    {Name = "Toy", Id = 616174484}
+}
+
+local currentAnimLabel = TabAnims:Label({Title = "Выберите анимацию:"})
+
+local function applyAnimPack(packId)
+    local char = lp.Character
+    if not char then return end
+    local animate = char:FindFirstChild("Animate")
+    if not animate then return end
+    
+    -- Простая подмена ID для R15
+    pcall(function() animate.walk.WalkAnim.AnimationId = "rbxassetid://" .. (packId + 68) end)
+    pcall(function() animate.run.RunAnim.AnimationId = "rbxassetid://" .. packId end)
+    pcall(function() animate.idle.Animation1.AnimationId = "rbxassetid://" .. (packId + 2) end)
+    pcall(function() animate.idle.Animation2.AnimationId = "rbxassetid://" .. (packId + 3) end)
+    pcall(function() animate.jump.JumpAnim.AnimationId = "rbxassetid://" .. (packId + 4) end)
+    pcall(function() animate.fall.FallAnim.AnimationId = "rbxassetid://" .. (packId + 5) end)
+    
+    notify("kemlopHud", "Анимация применена")
